@@ -1,4 +1,4 @@
-package main
+package bloom
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-func main() {
+func Bloom() {
 	fns := CreateHashFunctions(5)
 
 	buf := &bytes.Buffer{}
