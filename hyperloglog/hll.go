@@ -1,4 +1,4 @@
-package main
+package hll
 
 import (
 	"math"
@@ -19,9 +19,25 @@ func trailingZeroBits(value uint64) int {
 }
 
 type HLL struct {
-	m   uint64
-	p   uint8
+	m   uint64 //duzina niza
+	p   uint8  //preciznost
 	reg []uint8
+}
+
+func (hll *HLL) HyperLogLogConstructor(p uint8) {
+	hll.p = p
+	hll.m = uint64(math.Pow(float64(2), float64(hll.p)))
+	hll.reg = make([]uint8, hll.m)
+}
+
+func (hll *HLL) AddElement(key string) {
+	keyConverted := []byte(key)
+	keyHash := Hash(keyConverted)
+	bucket := firstKbits(uint64(keyHash), uint64(hll.p))
+	value := uint8(trailingZeroBits(keyHash) + 1)
+	if hll.reg[bucket] < value {
+		hll.reg[bucket] = value
+	}
 }
 
 func (hll *HLL) Estimate() float64 {
