@@ -1,10 +1,12 @@
 package simhash
 
 import (
+	"crypto/md5"
+	"fmt"
 	"strings"
 )
 
-func removeSpecialCharacters(s string) string {
+func RemoveSpecialCharacters(s string) string {
 	var result strings.Builder
 	for _, char := range s {
 		if strings.ContainsRune(".,?!;:-()\"+", char) { // rune vam je kao char u C i C++, mozemo dodati jos neke karaktere, ali mislim da nije potrebno
@@ -15,7 +17,7 @@ func removeSpecialCharacters(s string) string {
 	return result.String()
 }
 
-func RemoveStopWords(text string) string {
+func RemoveStopWords(text string) []string {
 	stopWords := map[string]bool{ // mapa sa zaustavnim recima, ovako nam je najlakse da proverimo da li je rec zaustavna
 		"a": true, "an": true, "and": true, "are": true, "as": true,
 		"at": true, "be": true, "but": true, "by": true, "for": true,
@@ -26,7 +28,7 @@ func RemoveStopWords(text string) string {
 		"this": true, "to": true, "was": true, "will": true, "with": true,
 	}
 
-	text = removeSpecialCharacters(text)
+	text = RemoveSpecialCharacters(text)
 
 	wordsSplitted := strings.Fields(text) // splitujemo teks, strings.fields splituje po whitespace karakterima
 
@@ -37,8 +39,31 @@ func RemoveStopWords(text string) string {
 		}
 	}
 
-	var builder strings.Builder
-	builder.WriteString(strings.Join(cleanedWords, " ")) // spajamo sve reci u string
-
-	return builder.String()
+	return cleanedWords
 }
+
+func CalculateWordWeights(text []string) map[string]int {
+	wordWeights := make(map[string]int)
+
+	for _, word := range text {
+		wordWeights[word]++
+	}
+
+	return wordWeights
+}
+
+func GetHashAsString(data []byte) string { // moramo ispraviti ovu funkciju tako da svi hesevi budu iste velicine, zbog tabele
+	hash := md5.Sum(data)
+	res := ""
+	for _, b := range hash {
+		res = fmt.Sprintf("%s%b", res, b)
+	}
+	return res
+}
+
+// ovo su funkcije koje bi trebali jos da implementiramo
+
+// func calculateDocumentFingerPrint()
+// func convertZerosToMinusOnes()
+// func convertToZeroOrOne()
+// func calculateHammingDistance()

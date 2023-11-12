@@ -6,7 +6,8 @@ import (
 )
 
 func main() {
-	fmt.Println("Napredni Algoritmi i Strukture Podataka!")
-	words := simhash.RemoveStopWords("Like all forests, the wooded stretches of the Arctic sometimes catch on fire.")
-	fmt.Println(words)
+	// ovde sam proveravao da li su hesevi iste velicine, nisu, to moze praviti problem
+	fmt.Println(simhash.GetHashAsString([]byte("hello world!")))
+	fmt.Println(simhash.GetHashAsString([]byte("dobar")))
+	fmt.Println(simhash.GetHashAsString([]byte("napredni")))
 }
