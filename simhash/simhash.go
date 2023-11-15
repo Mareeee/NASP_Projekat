@@ -56,14 +56,35 @@ func GetHashAsString(data []byte) string { // moramo ispraviti ovu funkciju tako
 	hash := md5.Sum(data)
 	res := ""
 	for _, b := range hash {
-		res = fmt.Sprintf("%s%b", res, b)
+		res = fmt.Sprintf("%s%08b", res, b)
 	}
 	return res
 }
 
 // ovo su funkcije koje bi trebali jos da implementiramo
 
-// func calculateDocumentFingerPrint()
-// func convertZerosToMinusOnes()
+func CalculateDocumentFingerPrint(text string) {
+	words := RemoveStopWords(text)
+	wordWeights := CalculateWordWeights(words)
+	wordHashes := make([]string, len(wordWeights))
+	for key, _ := range wordWeights {
+		wordHashes = append(wordHashes, GetHashAsString([]byte(key)))
+	}
+
+}
+
+func ConvertZerosToMinusOnes(data string) string {
+	res := ""
+	for _, c := range data {
+		if c == 48 {
+			res = fmt.Sprintf("%s%c", res, 45)
+			res = fmt.Sprintf("%s%c", res, 49)
+		} else {
+			res = fmt.Sprintf("%s%c", res, c)
+		}
+	}
+	return res
+}
+
 // func convertToZeroOrOne()
 // func calculateHammingDistance()
