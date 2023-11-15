@@ -44,6 +44,7 @@ func RemoveStopWords(text string) []string {
 	return cleanedWords
 }
 
+// broji ponavljanja reci u tekstu
 func CalculateWordWeights(text []string) map[string]int {
 	wordWeights := make(map[string]int)
 
@@ -54,35 +55,57 @@ func CalculateWordWeights(text []string) map[string]int {
 	return wordWeights
 }
 
-func GetHashAsString(data []byte) string { // moramo ispraviti ovu funkciju tako da svi hesevi budu iste velicine, zbog tabele
+func GetHashAsString(data []byte) string {
 	hash := md5.Sum(data)
 	res := ""
 	for _, b := range hash {
 		res = fmt.Sprintf("%s%08b", res, b)
 	}
-	res = res[:64] // moze i 128
+	res = res[:64] // max 128
 	return res
 }
 
-// ovo su funkcije koje bi trebali jos da implementiramo
-
-func CalculateDocumentFingerPrint(text string) {
-	words := RemoveStopWords(text)
-	wordWeights := CalculateWordWeights(words)
+// za svaku rec racuna hash
+func CalculateWordHashes(wordWeights map[string]int) map[string][]int {
 	wordHashes := make(map[string][]int)
 	for key, _ := range wordWeights {
 		wordHashes[key] = ConvertZerosToMinusOnes(GetHashAsString([]byte(key)))
 	}
+	return wordHashes
+}
 
+// formira tabelu i racuna vrednost tabele (sumiramo kolone, mnozeci tezine sa vrednoscu)
+func CalculateTable(wordWeights map[string]int, wordHashes map[string][]int) []int {
 	var calculations []int
-	for i := 0; i < HASH_SIZE; i++ {
+	for i := 0; i < HASH_SIZE; i++ { // za svaku kolonu prolazimo kroz svaku rec
 		value := 0
 		for key, weight := range wordWeights {
 			value += weight * wordHashes[key][i]
 		}
 		calculations = append(calculations, value)
 	}
-	fmt.Println(calculations)
+	return calculations
+}
+
+func ConvertToZerosAndOnes(calculations []int) []int {
+	for i, _ := range calculations {
+		if calculations[i] > 0 {
+			calculations[i] = 1
+		} else {
+			calculations[i] = 0
+		}
+	}
+	return calculations
+}
+
+// racunamo b-bitni fingerprint za ulazni set
+func CalculateFingerprint(text string) []int {
+	words := RemoveStopWords(text)
+	wordWeights := CalculateWordWeights(words)
+	wordHashes := CalculateWordHashes(wordWeights) // saljemo mapu wordWeights, jer se u words-u mogu ponavljati reci
+	calculations := CalculateTable(wordWeights, wordHashes)
+	fingerprint := ConvertToZerosAndOnes(calculations)
+	return fingerprint
 }
 
 func ConvertZerosToMinusOnes(data string) []int {
@@ -97,5 +120,32 @@ func ConvertZerosToMinusOnes(data string) []int {
 	return res
 }
 
-// func convertToZeroOrOne()
-// func calculateHammingDistance()
+func XOR(fingerprint1 []int, fingerprint2 []int) []int {
+	var xorArray []int
+	for i := 0; i < HASH_SIZE; i++ {
+		if fingerprint1[i] == fingerprint2[i] {
+			xorArray = append(xorArray, 0)
+		} else {
+			xorArray = append(xorArray, 1)
+		}
+	}
+	return xorArray
+}
+
+func CountOnes(xorArray []int) int {
+	ones := 0
+	for _, v := range xorArray {
+		if v == 1 {
+			ones++
+		}
+	}
+	return ones
+}
+
+// vraca broj jedinica koji predstavlja hemingovu udaljenost (vece => manje poklapanje | manje => vece poklapanje)
+func HammingDistance(text1 string, text2 string) int {
+	text1Fingerprint := CalculateFingerprint(text1)
+	text2Fingerprint := CalculateFingerprint(text2)
+	xor := XOR(text1Fingerprint, text2Fingerprint)
+	return CountOnes(xor)
+}
