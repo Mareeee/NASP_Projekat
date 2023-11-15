@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const HASH_SIZE = 64
+
 func RemoveSpecialCharacters(s string) string {
 	var result strings.Builder
 	for _, char := range s {
@@ -58,6 +60,7 @@ func GetHashAsString(data []byte) string { // moramo ispraviti ovu funkciju tako
 	for _, b := range hash {
 		res = fmt.Sprintf("%s%08b", res, b)
 	}
+	res = res[:64] // moze i 128
 	return res
 }
 
@@ -66,21 +69,29 @@ func GetHashAsString(data []byte) string { // moramo ispraviti ovu funkciju tako
 func CalculateDocumentFingerPrint(text string) {
 	words := RemoveStopWords(text)
 	wordWeights := CalculateWordWeights(words)
-	wordHashes := make([]string, len(wordWeights))
+	wordHashes := make(map[string][]int)
 	for key, _ := range wordWeights {
-		wordHashes = append(wordHashes, GetHashAsString([]byte(key)))
+		wordHashes[key] = ConvertZerosToMinusOnes(GetHashAsString([]byte(key)))
 	}
 
+	var calculations []int
+	for i := 0; i < HASH_SIZE; i++ {
+		value := 0
+		for key, weight := range wordWeights {
+			value += weight * wordHashes[key][i]
+		}
+		calculations = append(calculations, value)
+	}
+	fmt.Println(calculations)
 }
 
-func ConvertZerosToMinusOnes(data string) string {
-	res := ""
-	for _, c := range data {
+func ConvertZerosToMinusOnes(data string) []int {
+	res := make([]int, HASH_SIZE)
+	for i, c := range data {
 		if c == 48 {
-			res = fmt.Sprintf("%s%c", res, 45)
-			res = fmt.Sprintf("%s%c", res, 49)
+			res[i] = -1
 		} else {
-			res = fmt.Sprintf("%s%c", res, c)
+			res[i] = 1
 		}
 	}
 	return res
