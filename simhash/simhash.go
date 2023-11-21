@@ -111,7 +111,7 @@ func CalculateFingerprint(text string) []int {
 func ConvertZerosToMinusOnes(data string) []int {
 	res := make([]int, HASH_SIZE)
 	for i, c := range data {
-		if c == 48 {
+		if c == 48 { // 48 je vrednost nule u ASCII tabeli
 			res[i] = -1
 		} else {
 			res[i] = 1
