@@ -6,17 +6,16 @@ package main
 
 // "github.com/edsrzf/mmap-go"
 import (
-	"fmt"
 	"main/wal"
 )
 
 func main() {
 
-	wal := new(wal.Record)
+	wal_object := new(wal.Wal)
 
-	fmt.Println(wal)
+	wal_record := new(wal.Record)
 
-	wal.NewRecord("miroslav", "5")
+	wal_record.NewRecord("miroslav", "5")
 
 	// f, err := os.OpenFile("file.txt", os.O_RDWR|os.O_CREATE, 0644)
 	// if err != nil {

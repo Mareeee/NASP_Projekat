@@ -66,13 +66,8 @@ func (r Record) calculateCRC(timestamp int64, tombstone bool, keySize int64, val
 	return crc32.ChecksumIEEE(buffer)
 }
 
-// Ovo je funkcija koju nam je Tamara dala
-func CRC32(data []byte) uint32 {
-	return crc32.ChecksumIEEE(data)
-}
-
 // pretvara zapis u niz bajtova, trebace nam zbog upisivanja u fajl
-func (r Record) toBytes() []byte {
+func (r Record) ToBytes() []byte {
 	bufferSize := 29 + r.keySize + r.valueSize
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.crc32))

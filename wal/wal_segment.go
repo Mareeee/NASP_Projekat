@@ -21,5 +21,9 @@ func (s *Segment) LoadSegment(records []*Record, numberOfRecords int, fileName s
 	s.fileIndex = fileIndex
 }
 
+func (s *Segment) AddRecordToSegment(record Record) {
+	s.records = append(s.records, &record)
+}
+
 // mozda ce nam trebati neka funkcija koja dodaje zapis na kraj segmenta
 // mozda ce nam trebati neka funkcija koja ucitava ceo segment iz fajla, i to nekako treba da povezemo sa ovim drugim konstruktorom

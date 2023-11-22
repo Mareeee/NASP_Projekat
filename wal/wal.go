@@ -18,6 +18,18 @@ func (w *Wal) LoadWal(walDirectory string) {
 	// Skeniranje Wal - a
 }
 
+func (w *Wal) AddRecord(key string, value string) {
+	wal_record := new(Record)
+	if len(w.segments[w.numberOfSegments-1].records) == 64 {
+		w.numberOfSegments += 1
+		segment := new(Segment)
+		// segment.NewSegment()
+	}
+
+	wal_record.NewRecord(key, value)
+
+}
+
 // TODO: Implementiraj dodavanje zapisa u WAL datoteku
 // func (wm *WALManager) AddRecord(record *WALRecord) error {}
 
