@@ -5,18 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strconv"
 )
 
 type WalOptions struct {
-	numberOfSegments int
-	lowWaterMark     int
+	NumberOfSegments int `json:"NumberOfSegments"`
+	LowWaterMark     int `json:"LowWaterMark"`
 }
 
-func (wo *WalOptions) WalOptions(numberOfSegments int, lowWaterMark int) {
-	wo.numberOfSegments = numberOfSegments
-	wo.lowWaterMark = lowWaterMark
+func (wo *WalOptions) WalOptions(NumberOfSegments int, LowWaterMark int) {
+	wo.NumberOfSegments = NumberOfSegments
+	wo.LowWaterMark = LowWaterMark
 }
 
 type Wal struct {
@@ -26,52 +25,54 @@ type Wal struct {
 }
 
 func (w *Wal) Wal(walDirectory string) {
-	w.segments = make([]*Segment, 0)
-	w.walDirectory = walDirectory
 	w.walOptions = new(WalOptions)
-	w.walOptions.WalOptions(0, 0)
-}
+	w.walOptions.WalOptions(1, 0)
 
-func (w Wal) LoadJson() {
-	jsonFile, err := os.Open(WAL_CONFIG_FILE_PATH)
-	if err != nil {
-		fmt.Println(err)
-	}
+	w.segments = make([]*Segment, 1)
+	w.segments[0] = new(Segment)
+	w.segments[0].NewSegment(w.GetPath())
 
-	byteValue, err := ioutil.ReadAll(jsonFile)
-
-	fmt.Println("Loaded JSON Data:", string(byteValue))
-
-	// Unmarshal the JSON data into the Wal struct
-	err = json.Unmarshal(byteValue, w)
-
-	defer jsonFile.Close()
+	w.walDirectory = walDirectory
 }
 
 func (w *Wal) LoadWal(walDirectory string) {
 	w.LoadJson()
+	fmt.Println(w.walOptions.LowWaterMark)
+	fmt.Println(w.walOptions.NumberOfSegments)
+}
+
+func (w *Wal) LoadJson() {
+	jsonData, err := ioutil.ReadFile(WAL_CONFIG_FILE_PATH)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	err = json.Unmarshal(jsonData, &w.walOptions)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
 }
 
 func (w *Wal) AddRecord(key string, value string) {
 	wal_record := new(Record)
 	wal_record.NewRecord(key, value)
 
-	fmt.Println(w.walOptions.numberOfSegments)
-
-	if len(w.segments[w.walOptions.numberOfSegments].records) == 64 {
-		w.walOptions.numberOfSegments += 1
+	if len(w.segments[w.walOptions.NumberOfSegments-1].records) == 64 {
+		w.walOptions.NumberOfSegments += 1
 		wal_segment := new(Segment)
 		wal_segment.NewSegment(w.GetPath())
 	}
 
-	w.segments[w.walOptions.numberOfSegments].AddRecordToSegment(*wal_record)
+	w.segments[w.walOptions.NumberOfSegments-1].AddRecordToSegment(*wal_record)
 }
 
 // allows up to 1000 segments
 func (w Wal) GetPath() string {
 	path := SEGMENT_FILE_PATH
 
-	stringNumberOfSegments := strconv.Itoa(w.walOptions.numberOfSegments)
+	stringNumberOfSegments := strconv.Itoa(w.walOptions.NumberOfSegments)
 	lenString := len(stringNumberOfSegments)
 
 	switch lenString {
