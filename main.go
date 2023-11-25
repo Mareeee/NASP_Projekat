@@ -2,7 +2,6 @@ package main
 
 import (
 	"main/wal"
-	// "main/mmap"
 )
 
 func main() {
@@ -11,11 +10,11 @@ func main() {
 	wal_object.Wal("../data/wal")
 
 	wal_object.AddRecord("miroslav", "5")
+	wal_object.AddRecord("sremac", "24400")
+	wal_object.AddRecord("serbijangejmsbl", "032")
 
-	wal_object_2 := new(wal.Wal)
-	wal_object_2.LoadWal(wal.SEGMENT_FILE_PATH)
+	// wal_object.PrintStoredData()
 
-	// mmap.WriteToFile()
-
-	// value je niz bajtova
+	// wal_object_2 := new(wal.Wal)
+	// wal_object_2.LoadWal(wal.SEGMENT_FILE_PATH)
 }

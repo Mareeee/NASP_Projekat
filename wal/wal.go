@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 )
 
@@ -37,12 +37,10 @@ func (w *Wal) Wal(walDirectory string) {
 
 func (w *Wal) LoadWal(walDirectory string) {
 	w.LoadJson()
-	fmt.Println(w.walOptions.LowWaterMark)
-	fmt.Println(w.walOptions.NumberOfSegments)
 }
 
 func (w *Wal) LoadJson() {
-	jsonData, err := ioutil.ReadFile(WAL_CONFIG_FILE_PATH)
+	jsonData, err := os.ReadFile(WAL_CONFIG_FILE_PATH)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
@@ -58,14 +56,16 @@ func (w *Wal) LoadJson() {
 func (w *Wal) AddRecord(key string, value string) {
 	wal_record := new(Record)
 	wal_record.NewRecord(key, value)
+	last_segment := w.segments[w.walOptions.NumberOfSegments-1]
 
-	if len(w.segments[w.walOptions.NumberOfSegments-1].records) == 64 {
-		w.walOptions.NumberOfSegments += 1
+	if len(last_segment.records) == 64 {
+		w.walOptions.NumberOfSegments++
 		wal_segment := new(Segment)
 		wal_segment.NewSegment(w.GetPath())
+		w.segments = append(w.segments, wal_segment)
+		last_segment = wal_segment
 	}
-
-	w.segments[w.walOptions.NumberOfSegments-1].AddRecordToSegment(*wal_record)
+	last_segment.AddRecordToSegment(*wal_record)
 }
 
 // allows up to 1000 segments

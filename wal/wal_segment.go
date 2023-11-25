@@ -1,5 +1,10 @@
 package wal
 
+import (
+	"log"
+	"os"
+)
+
 type Segment struct {
 	records         []*Record
 	numberOfRecords int
@@ -19,12 +24,20 @@ func (s *Segment) LoadSegment(records []*Record, numberOfRecords int, fileName s
 }
 
 func (s *Segment) AddRecordToSegment(record Record) {
-	s.numberOfRecords += 1
+	s.numberOfRecords++
 	s.records = append(s.records, &record)
 
-	// record_bytes := record.ToBytes()
-	// pozivano mmap za record_bytes
+	s.WriteRecord(record)
 }
 
-// mozda ce nam trebati neka funkcija koja dodaje zapis na kraj segmenta
-// mozda ce nam trebati neka funkcija koja ucitava ceo segment iz fajla, i to nekako treba da povezemo sa ovim drugim konstruktorom
+func (s Segment) WriteRecord(record Record) {
+	recordBytes := record.ToBytes()
+
+	f, err := os.OpenFile(s.fileName, os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	f.Write(recordBytes)
+}

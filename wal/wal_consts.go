@@ -15,6 +15,6 @@ const (
 	VALUE_SIZE_START = KEY_SIZE_START + KEY_SIZE_SIZE
 	KEY_START        = VALUE_SIZE_START + VALUE_SIZE_SIZE
 
-	SEGMENT_FILE_PATH    = "../data/wal/wal_"
+	SEGMENT_FILE_PATH    = "data/wal/wal_"
 	WAL_CONFIG_FILE_PATH = "config/wal.json"
 )
