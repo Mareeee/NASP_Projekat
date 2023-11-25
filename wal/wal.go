@@ -28,15 +28,16 @@ func (w *Wal) Wal(walDirectory string) {
 	w.walOptions = new(WalOptions)
 	w.walOptions.WalOptions(1, 0)
 
-	w.segments = make([]*Segment, 1)
+	w.segments = make([]*Segment, 1) // inijalno postoji jedan segment
 	w.segments[0] = new(Segment)
-	w.segments[0].NewSegment(w.GetPath())
+	w.segments[0].NewSegment(getPath(w.walOptions.NumberOfSegments))
 
 	w.walDirectory = walDirectory
 }
 
 func (w *Wal) LoadWal(walDirectory string) {
 	w.LoadJson()
+	w.LoadSegments()
 }
 
 func (w *Wal) LoadJson() {
@@ -53,6 +54,18 @@ func (w *Wal) LoadJson() {
 	}
 }
 
+func (w *Wal) LoadSegments() {
+	for i := 1; i <= w.walOptions.NumberOfSegments; i++ {
+		loadedSegment := new(Segment)
+		loadedSegment.LoadSegment(getPath(i))
+		w.segments = append(w.segments, loadedSegment)
+	}
+}
+
+// func (w *Wal) WriteJson() {
+
+// }
+
 func (w *Wal) AddRecord(key string, value string) {
 	wal_record := new(Record)
 	wal_record.NewRecord(key, value)
@@ -61,18 +74,18 @@ func (w *Wal) AddRecord(key string, value string) {
 	if len(last_segment.records) == 64 {
 		w.walOptions.NumberOfSegments++
 		wal_segment := new(Segment)
-		wal_segment.NewSegment(w.GetPath())
+		wal_segment.NewSegment(getPath(w.walOptions.NumberOfSegments))
 		w.segments = append(w.segments, wal_segment)
 		last_segment = wal_segment
 	}
 	last_segment.AddRecordToSegment(*wal_record)
 }
 
-// allows up to 1000 segments
-func (w Wal) GetPath() string {
+// nas wal moze imati do 1000 segmenata
+func getPath(numberOfSegments int) string {
 	path := SEGMENT_FILE_PATH
 
-	stringNumberOfSegments := strconv.Itoa(w.walOptions.NumberOfSegments)
+	stringNumberOfSegments := strconv.Itoa(numberOfSegments)
 	lenString := len(stringNumberOfSegments)
 
 	switch lenString {
@@ -89,24 +102,6 @@ func (w Wal) GetPath() string {
 
 	return path
 }
-
-// TODO: Implementiraj čitanje svih zapisa iz WAL datoteke
-// func (wm *WALManager) ReadAllRecords() ([]*WALRecord, error) {
-// 	return nil, nil
-// }
-
-// TODO: Implementiraj čitanje jednog po jednog zapisa
-// func (wm *WALManager) ReadNextRecord() (*WALRecord, error) {
-// 	return nil, nil
-// }
-
-// skenira wal folder i zabeležava sve segmente
-// func (wm *WALManager) scanSegments() {}
-
-// izvlači indeks segmenta iz imena datoteke
-// func extractSegmentIndex(filePath string) int {
-// 	return index
-// }
 
 // čisti starije segmente prema low water mark
 // func (wm *WALManager) CleanSegments() {
