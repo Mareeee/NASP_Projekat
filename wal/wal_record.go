@@ -6,19 +6,6 @@ import (
 	"time"
 )
 
-/*
-   +---------------+-----------------+---------------+---------------+-----------------+-...-+--...--+
-   |    CRC (4B)   | Timestamp (8B) | Tombstone(1B) | Key Size (8B) | Value Size (8B) | Key | Value |
-   +---------------+-----------------+---------------+---------------+-----------------+-...-+--...--+
-   CRC = 32bit hash computed over the payload using CRC
-   Key Size = Length of the Key data
-   Tombstone = If this record was deleted and has a value
-   Value Size = Length of the Value data
-   Key = Key data
-   Value = Value data
-   Timestamp = Timestamp of the operation in seconds
-*/
-
 type Record struct {
 	crc32     uint32
 	timestamp int64
@@ -26,10 +13,10 @@ type Record struct {
 	keySize   int64
 	valueSize int64
 	key       string
-	value     string // sa konzole ucitavamo vrednost kao string, pa posle konvertujemo u sta treba
-	// string najlakse mozemo prebaciti u niz bajtova
+	value     string // sa konzole ucitavamo vrednost kao string, pa posle konvertujemo u niz bajtova
 }
 
+/* Konstruktor za pravljenje novog zapisa */
 func (r *Record) NewRecord(key string, value string) {
 	r.tombstone = false
 	r.timestamp = time.Now().Unix()
@@ -37,9 +24,10 @@ func (r *Record) NewRecord(key string, value string) {
 	r.valueSize = int64(len([]byte(value)))
 	r.key = key
 	r.value = value
-	r.crc32 = r.calculateCRC(r.timestamp, r.tombstone, r.keySize, r.valueSize, r.key, r.value)
+	r.crc32 = CalculateCRC(r.timestamp, r.tombstone, r.keySize, r.valueSize, r.key, r.value)
 }
 
+/* Konstruktor za ucitavanje zapisa u memoriju */
 func (r *Record) LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value string) {
 	r.crc32 = crc32
 	r.timestamp = timestamp
@@ -50,23 +38,23 @@ func (r *Record) LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySi
 	r.value = value
 }
 
-func (r Record) calculateCRC(timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value string) uint32 {
-	bufferSize := 25 + keySize + valueSize
+func CalculateCRC(timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value string) uint32 {
+	bufferSize := 25 + keySize + valueSize // 25 zato sto su svi pre key i value fiksni, a key i value su promenljive duzine, crc nije uracunat
 	buffer := make([]byte, bufferSize)
-	binary.BigEndian.PutUint64(buffer[0:8], uint64(r.timestamp))
+	binary.BigEndian.PutUint64(buffer[0:8], uint64(timestamp))
 	buffer[8] = 0
-	if r.tombstone {
+	if tombstone {
 		buffer[8] = 1
 	}
 	binary.BigEndian.PutUint64(buffer[9:17], uint64(keySize))
 	binary.BigEndian.PutUint64(buffer[17:25], uint64(valueSize))
-	copy(buffer[25:25+keySize], []byte(r.key))
-	copy(buffer[25+keySize:bufferSize], []byte(r.value))
+	copy(buffer[25:25+keySize], []byte(key))
+	copy(buffer[25+keySize:bufferSize], []byte(value))
 
 	return crc32.ChecksumIEEE(buffer)
 }
 
-// pretvara zapis u niz bajtova, trebace nam zbog upisivanja u fajl
+/* Konvertuje zapis u niz bajtova */
 func (r Record) ToBytes() []byte {
 	bufferSize := 29 + r.keySize + r.valueSize
 	buffer := make([]byte, bufferSize)
