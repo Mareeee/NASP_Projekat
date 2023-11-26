@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,39 +20,83 @@ func (wo *WalOptions) WalOptions(NumberOfSegments int, LowWaterMark int) {
 }
 
 type Wal struct {
-	segments     []*Segment
-	walDirectory string
-	walOptions   *WalOptions
+	segments   []*Segment
+	walOptions *WalOptions
 }
 
-func (w *Wal) Wal(walDirectory string) {
+func (w *Wal) Wal() {
 	w.walOptions = new(WalOptions)
 	w.walOptions.WalOptions(1, 0)
 
 	w.segments = make([]*Segment, 1) // inijalno postoji jedan segment
 	w.segments[0] = new(Segment)
 	w.segments[0].NewSegment(getPath(w.walOptions.NumberOfSegments))
-
-	w.walDirectory = walDirectory
 }
 
-func (w *Wal) LoadWal(walDirectory string) {
+func (w *Wal) LoadAllRecords() {
 	w.LoadJson()
 	w.LoadSegments()
 }
 
-func (w *Wal) LoadJson() {
-	jsonData, err := os.ReadFile(WAL_CONFIG_FILE_PATH)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
+func (w *Wal) LoadNextRecord() {
+	w.LoadJson()
+	if len(w.segments[len(w.segments)-1].records) == 3 {
+		newSegment := new(Segment)
+		newSegment.NewSegment(getPath(len(w.segments) + 1))
+		w.segments = append(w.segments, newSegment)
+	}
+	fileName := getPath(len(w.segments))
+
+	w.GetNextRecord(fileName)
+}
+
+// func (w *Wal) PrintRecord() string {
+// 	return w.segments[len(w.segments)-1].records[len(w.segments[len(w.segments)-1].records)-1].key
+// }
+
+func (w *Wal) GetNextRecord(fileName string) {
+	f, _ := os.OpenFile(fileName, os.O_RDONLY, 0644)
+	defer f.Close()
+
+	stat, _ := f.Stat()
+
+	data := make([]byte, stat.Size())
+	f.Read(data)
+
+	offset := w.CalculateOffset()
+	data = data[offset:]
+	crc32 := binary.BigEndian.Uint32(data[0:4])
+	timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
+	tombstone := false
+	if data[12] == 1 {
+		tombstone = true
+	}
+	keySize := int64(binary.BigEndian.Uint64(data[13:21]))
+	valueSize := int64(binary.BigEndian.Uint64(data[21:29]))
+	key := string(data[29 : 29+keySize])
+	value := string(data[29+keySize : 29+keySize+valueSize])
+
+	loadedRecord := new(Record)
+	loadedRecord.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
+	lastSegment := w.segments[len(w.segments)-1]
+	lastSegment.records = append(lastSegment.records, loadedRecord)
+}
+
+func (w *Wal) CalculateOffset() int {
+	lastSegment := w.segments[len(w.segments)-1]
+	offset := 0
+
+	for i := 0; i < len(lastSegment.records); i++ {
+		offset += len(lastSegment.records[i].ToBytes())
 	}
 
-	err = json.Unmarshal(jsonData, &w.walOptions)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
+	return offset
+}
+
+func (w *Wal) LoadJson() {
+	jsonData, _ := os.ReadFile(WAL_CONFIG_FILE_PATH)
+
+	json.Unmarshal(jsonData, &w.walOptions)
 }
 
 func (w *Wal) LoadSegments() {
@@ -62,7 +107,18 @@ func (w *Wal) LoadSegments() {
 	}
 }
 
-// func (w *Wal) WriteJson() {
+func (w *Wal) WriteJson() {
+	jsonData, _ := json.MarshalIndent(w.walOptions, "", "  ")
+
+	os.WriteFile(WAL_CONFIG_FILE_PATH, jsonData, 0644)
+}
+
+func (w *Wal) ChangeLowWaterMark(newLowWaterMark int) {
+	w.walOptions.LowWaterMark = newLowWaterMark
+	w.WriteJson()
+}
+
+// func (w *Wal) DeleteSegments() {
 
 // }
 
@@ -71,12 +127,13 @@ func (w *Wal) AddRecord(key string, value string) {
 	wal_record.NewRecord(key, value)
 	last_segment := w.segments[w.walOptions.NumberOfSegments-1]
 
-	if len(last_segment.records) == 64 {
+	if len(last_segment.records) == 3 {
 		w.walOptions.NumberOfSegments++
 		wal_segment := new(Segment)
 		wal_segment.NewSegment(getPath(w.walOptions.NumberOfSegments))
 		w.segments = append(w.segments, wal_segment)
 		last_segment = wal_segment
+		w.WriteJson()
 	}
 	last_segment.AddRecordToSegment(*wal_record)
 }

@@ -1,4 +1,4 @@
 {
-    "NumberOfSegments" : 1,
-    "LowWaterMark" : 0
+  "NumberOfSegments": 2,
+  "LowWaterMark": 0
 }
