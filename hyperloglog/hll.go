@@ -1,8 +1,11 @@
 package hll
 
 import (
+	"encoding/binary"
+	"fmt"
 	"math"
 	"math/bits"
+	"os"
 )
 
 const (
@@ -67,4 +70,52 @@ func (hll *HLL) emptyCount() int {
 		}
 	}
 	return sum
+}
+
+func (hll *HLL) ToBytes() []byte {
+	bufferSize := 9 + len(hll.reg)
+	fmt.Println(bufferSize)
+	buffer := make([]byte, bufferSize)
+	binary.BigEndian.PutUint64(buffer[0:8], hll.m)
+	copy(buffer[8:9], []byte{hll.p})
+	offSet := 9
+	for i := 0; i < len(hll.reg); i++ {
+		copy(buffer[offSet:offSet+1], []byte{hll.reg[i]})
+		offSet += 1
+	}
+	return buffer
+}
+
+func (hll *HLL) WriteToBinFile() {
+	data := hll.ToBytes()
+
+	f, _ := os.OpenFile(HLL_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	defer f.Close()
+
+	f.Write(data)
+}
+
+func (hll *HLL) LoadHLL() {
+	f, _ := os.OpenFile(HLL_FILE_PATH, os.O_RDONLY, 0644)
+	defer f.Close()
+
+	stat, _ := f.Stat()
+
+	data := make([]byte, stat.Size())
+	f.Read(data)
+
+	hll.m = binary.BigEndian.Uint64(data[0:8])
+
+	for _, b := range data[8:9] {
+		hll.p = (hll.p << 1) | uint8(b) // posto ne postoji binary.BigEndian.Uint8, shift-ovali smo vrednost za 1 bajt u levo
+	}
+
+	offSet := 9
+	hll.reg = make([]uint8, hll.m)
+	for i := 0; i < int(hll.m); i++ {
+		for _, b := range data[offSet : offSet+1] {
+			hll.reg[i] = (hll.reg[i] << 1) | uint8(b) // posto ne postoji binary.BigEndian.Uint8, shift-ovali smo vrednost za 1 bajt u levo i dodelili vrednost niza
+		}
+		offSet += 1
+	}
 }

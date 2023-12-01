@@ -8,8 +8,11 @@ import (
 func main() {
 	fmt.Println("Napredni Algoritmi i Strukture Podataka!")
 	hyll := new(hll.HLL)
-	hyll.HyperLogLogConstructor(10)
-	hyll.AddElement("Boban")
-	hyll.AddElement("Coban")
+	hyll.LoadHLL()
+	// hyll.HyperLogLogConstructor(10)
+	// hyll.AddElement("Boban")
+	// hyll.AddElement("Coban")
 	fmt.Println(hyll.Estimate())
+
+	// hyll.WriteToBinFile()
 }
