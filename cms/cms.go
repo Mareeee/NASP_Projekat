@@ -13,7 +13,7 @@ type CountMinSketch struct {
 	matrix [][]uint32     // matrix bajtova
 }
 
-func (cms *CountMinSketch) CountMinSketchConstructor(epsilon float64, delta float64) {
+func (cms *CountMinSketch) NewCountMinSketch(epsilon float64, delta float64) {
 	cms.m = CalculateM(epsilon)
 	cms.k = CalculateK(delta)
 	cms.hf = CreateHashFunctions(cms.k)
@@ -48,16 +48,16 @@ func (cms *CountMinSketch) NumberOfRepetitions(key string) uint32 {
 	return arrOfRepetitions[0]
 }
 
-func (cms *CountMinSketch) HfLength() int {
+func (cms *CountMinSketch) hfLength() int {
 	return len(cms.hf) * 32
 }
 
-func (cms *CountMinSketch) MatrixLength() uint32 {
+func (cms *CountMinSketch) matrixLength() uint32 {
 	return cms.m * cms.k * 4
 }
 
-func (cms *CountMinSketch) ToBytes() []byte {
-	bufferSize := 8 + cms.HfLength() + int(cms.MatrixLength())
+func (cms *CountMinSketch) toBytes() []byte {
+	bufferSize := 8 + cms.hfLength() + int(cms.matrixLength())
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint32(buffer[0:4], cms.m)
 	binary.BigEndian.PutUint32(buffer[4:8], cms.k)
@@ -78,7 +78,7 @@ func (cms *CountMinSketch) ToBytes() []byte {
 }
 
 func (cms *CountMinSketch) WriteToBinFile() {
-	data := cms.ToBytes()
+	data := cms.toBytes()
 
 	f, _ := os.OpenFile(CMS_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
