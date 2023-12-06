@@ -1,10 +1,7 @@
 package bloom
 
 import (
-	"bytes"
 	"encoding/binary"
-	"encoding/gob"
-	"fmt"
 	"os"
 )
 
@@ -15,7 +12,7 @@ type BloomFilter struct {
 	hf  []HashWithSeed // niz hash funkcija
 }
 
-func (bf *BloomFilter) BloomFilterConstructor(expectedElements int, falsePositiveRate float64) {
+func (bf *BloomFilter) NewBloomFilter(expectedElements int, falsePositiveRate float64) {
 	bf.m = CalculateM(expectedElements, falsePositiveRate)
 	bf.k = CalculateK(expectedElements, bf.m)
 	bf.hf = CreateHashFunctions(bf.k)
@@ -43,12 +40,12 @@ func (bf *BloomFilter) CheckElement(key string) bool {
 	return true
 }
 
-func (bf *BloomFilter) HfLength() int {
+func (bf *BloomFilter) hfLength() int {
 	return len(bf.hf) * 32
 }
 
-func (bf *BloomFilter) ToBytes() []byte {
-	bufferSize := 8 + len(bf.arr) + bf.HfLength()
+func (bf *BloomFilter) toBytes() []byte {
+	bufferSize := 8 + len(bf.arr) + bf.hfLength()
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint32(buffer[0:4], bf.m)
 	copy(buffer[4:len(bf.arr)+4], bf.arr)
@@ -62,7 +59,7 @@ func (bf *BloomFilter) ToBytes() []byte {
 }
 
 func (bf *BloomFilter) WriteToBinFile() {
-	data := bf.ToBytes()
+	data := bf.toBytes()
 
 	f, _ := os.OpenFile(BLOOM_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
@@ -88,28 +85,4 @@ func (bf *BloomFilter) LoadBloomFilter() {
 		bf.hf[i] = HashWithSeed{Seed: data[offSet : offSet+32]}
 		offSet += 32
 	}
-}
-
-func Bloom() {
-	fns := CreateHashFunctions(5)
-
-	buf := &bytes.Buffer{}
-	encoder := gob.NewEncoder(buf)
-	decoder := gob.NewDecoder(buf)
-
-	for _, fn := range fns {
-		data := []byte("hello")
-		fmt.Printf("hashed value [before hash fn serialization]: %v\n", fn.Hash(data))
-		err := encoder.Encode(fn)
-		if err != nil {
-			panic(err)
-		}
-		dfn := &HashWithSeed{}
-		err = decoder.Decode(dfn)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("hashed value [after hash fn deserialization]: %v\n\n", fn.Hash(data))
-	}
-
 }
