@@ -27,7 +27,7 @@ type HLL struct {
 	reg []uint8
 }
 
-func (hll *HLL) HyperLogLogConstructor(p uint8) {
+func (hll *HLL) NewHyperLogLog(p uint8) {
 	hll.p = p
 	hll.m = uint64(math.Pow(float64(2), float64(hll.p)))
 	hll.reg = make([]uint8, hll.m)
@@ -72,7 +72,7 @@ func (hll *HLL) emptyCount() int {
 	return sum
 }
 
-func (hll *HLL) ToBytes() []byte {
+func (hll *HLL) toBytes() []byte {
 	bufferSize := 9 + len(hll.reg)
 	fmt.Println(bufferSize)
 	buffer := make([]byte, bufferSize)
@@ -87,7 +87,7 @@ func (hll *HLL) ToBytes() []byte {
 }
 
 func (hll *HLL) WriteToBinFile() {
-	data := hll.ToBytes()
+	data := hll.toBytes()
 
 	f, _ := os.OpenFile(HLL_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
