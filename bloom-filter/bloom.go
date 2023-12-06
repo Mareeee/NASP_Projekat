@@ -1,11 +1,5 @@
 package bloom
 
-import (
-	"bytes"
-	"encoding/gob"
-	"fmt"
-)
-
 type BloomFilter struct {
 	m   uint           // duzina bloom  filtera
 	k   uint           // broj hash funkcija
@@ -13,7 +7,7 @@ type BloomFilter struct {
 	hf  []HashWithSeed // niz hash funkcija
 }
 
-func (bf *BloomFilter) BloomFilterConstructor(expectedElements int, falsePositiveRate float64) {
+func (bf *BloomFilter) NewBloomFilter(expectedElements int, falsePositiveRate float64) {
 	bf.m = CalculateM(expectedElements, falsePositiveRate)
 	bf.k = CalculateK(expectedElements, bf.m)
 	bf.hf = CreateHashFunctions(bf.k)
@@ -39,28 +33,4 @@ func (bf *BloomFilter) CheckElement(key string) bool {
 		}
 	}
 	return true
-}
-
-func Bloom() {
-	fns := CreateHashFunctions(5)
-
-	buf := &bytes.Buffer{}
-	encoder := gob.NewEncoder(buf)
-	decoder := gob.NewDecoder(buf)
-
-	for _, fn := range fns {
-		data := []byte("hello")
-		fmt.Printf("hashed value [before hash fn serialization]: %v\n", fn.Hash(data))
-		err := encoder.Encode(fn)
-		if err != nil {
-			panic(err)
-		}
-		dfn := &HashWithSeed{}
-		err = decoder.Decode(dfn)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("hashed value [after hash fn deserialization]: %v\n\n", fn.Hash(data))
-	}
-
 }
