@@ -14,7 +14,7 @@ func (node Node) GetValue() int {
 	return node.value
 }
 
-func (node *Node) NodeConstructor(value, level int) {
+func (node *Node) newNode(value, level int) {
 	node.value = value
 	node.next = make([]*Node, level+1) // next u i-tom redu
 }
@@ -25,10 +25,10 @@ type SkipList struct {
 	level     int // trenutni broj nivoa
 }
 
-func (sl *SkipList) SkipListConstructor(maxHeight int) {
+func (sl *SkipList) NewSkipList(maxHeight int) {
 	sl.maxHeight = maxHeight
 	sl.head = new(Node)
-	sl.head.NodeConstructor(0, maxHeight)
+	sl.head.newNode(0, maxHeight)
 	sl.level = 1
 }
 
@@ -46,7 +46,7 @@ func (sl *SkipList) Search(value int) (*Node, bool) {
 func (sl *SkipList) Insert(value int) {
 	new := new(Node)
 	level := sl.roll()
-	new.NodeConstructor(value, level)
+	new.newNode(value, level)
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
 		for current.next[i] != nil && current.next[i].value < value {
