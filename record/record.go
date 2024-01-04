@@ -1,4 +1,4 @@
-package memtable
+package record
 
 import (
 	"encoding/binary"
@@ -12,7 +12,7 @@ type Record struct {
 	tombstone bool // 1 byte
 	keySize   int64
 	valueSize int64
-	key       string
+	Key       string
 	value     string // sa konzole ucitavamo vrednost kao string, pa posle konvertujemo u niz bajtova
 }
 
@@ -22,9 +22,9 @@ func (r *Record) NewRecord(key string, value string) {
 	r.timestamp = time.Now().Unix()
 	r.keySize = int64(len([]byte(key)))
 	r.valueSize = int64(len([]byte(value)))
-	r.key = key
+	r.Key = key
 	r.value = value
-	r.crc32 = CalculateCRC(r.timestamp, r.tombstone, r.keySize, r.valueSize, r.key, r.value)
+	r.crc32 = CalculateCRC(r.timestamp, r.tombstone, r.keySize, r.valueSize, r.Key, r.value)
 }
 
 /* Konstruktor za ucitavanje zapisa u memoriju */
@@ -34,7 +34,7 @@ func (r *Record) LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySi
 	r.tombstone = tombstone
 	r.keySize = keySize
 	r.valueSize = valueSize
-	r.key = key
+	r.Key = key
 	r.value = value
 }
 
@@ -66,7 +66,7 @@ func (r Record) ToBytes() []byte {
 	}
 	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.keySize))
 	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.valueSize))
-	copy(buffer[29:29+r.keySize], []byte(r.key))
+	copy(buffer[29:29+r.keySize], []byte(r.Key))
 	copy(buffer[29+r.keySize:bufferSize], []byte(r.value))
 	return buffer
 }
