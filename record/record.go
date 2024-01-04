@@ -7,39 +7,39 @@ import (
 )
 
 type Record struct {
-	crc32     uint32
-	timestamp int64
-	tombstone bool // 1 byte
-	keySize   int64
-	valueSize int64
-	key       string
-	value     []byte // sa konzole ucitavamo vrednost kao string, pa posle konvertujemo u niz bajtova
+	Crc32     uint32
+	Timestamp int64
+	Tombstone bool // 1 byte
+	KeySize   int64
+	ValueSize int64
+	Key       string
+	Value     []byte // sa konzole ucitavamo vrednost kao string, pa posle konvertujemo u niz bajtova
 }
 
 /* Konstruktor za pravljenje novog zapisa */
 func NewRecord(key string, value []byte) *Record {
 	record := &Record{
-		tombstone: false,
-		timestamp: time.Now().Unix(),
-		keySize:   int64(len([]byte(key))),
-		valueSize: int64(len([]byte(value))),
-		key:       key,
-		value:     value,
+		Tombstone: false,
+		Timestamp: time.Now().Unix(),
+		KeySize:   int64(len([]byte(key))),
+		ValueSize: int64(len([]byte(value))),
+		Key:       key,
+		Value:     value,
 	}
-	record.crc32 = CalculateCRC(record.timestamp, record.tombstone, record.keySize, record.valueSize, record.key, record.value)
+	record.Crc32 = CalculateCRC(record.Timestamp, record.Tombstone, record.KeySize, record.ValueSize, record.Key, record.Value)
 	return record
 }
 
 /* Konstruktor za ucitavanje zapisa u memoriju */
 func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value []byte) *Record {
 	return &Record{
-		crc32:     crc32,
-		timestamp: timestamp,
-		tombstone: tombstone,
-		keySize:   keySize,
-		valueSize: valueSize,
-		key:       key,
-		value:     value,
+		Crc32:     crc32,
+		Timestamp: timestamp,
+		Tombstone: tombstone,
+		KeySize:   keySize,
+		ValueSize: valueSize,
+		Key:       key,
+		Value:     value,
 	}
 }
 
@@ -61,17 +61,17 @@ func CalculateCRC(timestamp int64, tombstone bool, keySize int64, valueSize int6
 
 /* Konvertuje zapis u niz bajtova */
 func (r Record) ToBytes() []byte {
-	bufferSize := 29 + r.keySize + r.valueSize
+	bufferSize := 29 + r.KeySize + r.ValueSize
 	buffer := make([]byte, bufferSize)
-	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.crc32))
-	binary.BigEndian.PutUint64(buffer[4:12], uint64(r.timestamp))
+	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.Crc32))
+	binary.BigEndian.PutUint64(buffer[4:12], uint64(r.Timestamp))
 	buffer[12] = 0
-	if r.tombstone {
+	if r.Tombstone {
 		buffer[12] = 1
 	}
-	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.keySize))
-	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.valueSize))
-	copy(buffer[29:29+r.keySize], []byte(r.key))
-	copy(buffer[29+r.keySize:bufferSize], r.value)
+	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.ValueSize))
+	copy(buffer[29:29+r.KeySize], []byte(r.Key))
+	copy(buffer[29+r.KeySize:bufferSize], r.Value)
 	return buffer
 }
