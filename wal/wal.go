@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"main/record"
 	"os"
 	"strconv"
 )
@@ -24,7 +25,7 @@ func LoadWal() *Wal {
 
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
 func (w *Wal) AddRecord(key string, value []byte) {
-	record := NewRecord(key, value)
+	record := record.NewRecord(key, value)
 
 	if w.LastSegmentNumberOfRecords == w.SegmentSize {
 		w.NumberOfSegments++
@@ -34,13 +35,13 @@ func (w *Wal) AddRecord(key string, value []byte) {
 	w.AddRecordToSegment(*record)
 }
 
-func (w *Wal) AddRecordToSegment(record Record) {
+func (w *Wal) AddRecordToSegment(record record.Record) {
 	w.LastSegmentNumberOfRecords++
 	w.WriteRecord(record)
 	w.WriteJson()
 }
 
-func (w Wal) WriteRecord(record Record) {
+func (w Wal) WriteRecord(record record.Record) {
 	recordBytes := record.ToBytes()
 
 	f, _ := os.OpenFile(getPath(w.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
@@ -50,8 +51,8 @@ func (w Wal) WriteRecord(record Record) {
 }
 
 /* Ucitavanje svih zapisa odjednom */
-func (w *Wal) LoadAllRecords() []*Record {
-	var records []*Record
+func (w *Wal) LoadAllRecords() []*record.Record {
+	var records []*record.Record
 
 	w.LoadJson()
 
@@ -63,8 +64,8 @@ func (w *Wal) LoadAllRecords() []*Record {
 }
 
 /* Ucitava sve zapise segmenta u memoriju */
-func (w *Wal) LoadRecordsFromSegment(fileName string) []*Record {
-	var records []*Record
+func (w *Wal) LoadRecordsFromSegment(fileName string) []*record.Record {
+	var records []*record.Record
 
 	f, _ := os.OpenFile(fileName, os.O_RDONLY, 0644)
 	defer f.Close()
@@ -86,10 +87,10 @@ func (w *Wal) LoadRecordsFromSegment(fileName string) []*Record {
 		key := string(data[29 : 29+keySize])
 		value := data[29+keySize : 29+keySize+valueSize]
 
-		checkCrc32 := CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
+		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
 
 		if checkCrc32 == crc32 { // potrebno je pri ucitavanju proveriti da li je doslo do promene zapisa
-			loadedRecord := LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
+			loadedRecord := record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
 			records = append(records, loadedRecord)
 		}
 
@@ -118,7 +119,7 @@ func (w *Wal) DeleteSegments() {
 	w.WriteJson()
 }
 
-func (w *Wal) ChangeLowWaterMark(newLowWaterMark int) {
+func (w *Wal) SetLowWaterMark(newLowWaterMark int) {
 	w.LowWaterMark = newLowWaterMark
 	w.WriteJson()
 }

@@ -1,6 +1,6 @@
 {
   "NumberOfSegments": 1,
-  "LowWaterMark": 2,
+  "LowWaterMark": 1,
   "SegmentSize": 3,
-  "LastSegmentNumberOfRecords": 3
+  "LastSegmentNumberOfRecords": 1
 }
