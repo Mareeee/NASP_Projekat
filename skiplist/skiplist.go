@@ -2,17 +2,17 @@ package skiplist
 
 import (
 	"errors"
-	"math/rand"
 	"main/record"
+	"math/rand"
 )
 
 type Node struct {
 	record record.Record
-	next  []*Node
+	next   []*Node
 }
 
-func (node Node) GetValue() int {
-	return node.record.
+func (node Node) GetValue() []byte {
+	return node.record.Value
 }
 
 func (node *Node) newNode(value, level int) {
