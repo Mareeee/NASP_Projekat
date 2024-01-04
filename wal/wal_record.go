@@ -13,32 +13,37 @@ type Record struct {
 	keySize   int64
 	valueSize int64
 	key       string
-	value     string // sa konzole ucitavamo vrednost kao string, pa posle konvertujemo u niz bajtova
+	value     []byte // sa konzole ucitavamo vrednost kao string, pa posle konvertujemo u niz bajtova
 }
 
 /* Konstruktor za pravljenje novog zapisa */
-func (r *Record) NewRecord(key string, value string) {
-	r.tombstone = false
-	r.timestamp = time.Now().Unix()
-	r.keySize = int64(len([]byte(key)))
-	r.valueSize = int64(len([]byte(value)))
-	r.key = key
-	r.value = value
-	r.crc32 = CalculateCRC(r.timestamp, r.tombstone, r.keySize, r.valueSize, r.key, r.value)
+func NewRecord(key string, value []byte) *Record {
+	record := &Record{
+		tombstone: false,
+		timestamp: time.Now().Unix(),
+		keySize:   int64(len([]byte(key))),
+		valueSize: int64(len([]byte(value))),
+		key:       key,
+		value:     value,
+	}
+	record.crc32 = CalculateCRC(record.timestamp, record.tombstone, record.keySize, record.valueSize, record.key, record.value)
+	return record
 }
 
 /* Konstruktor za ucitavanje zapisa u memoriju */
-func (r *Record) LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value string) {
-	r.crc32 = crc32
-	r.timestamp = timestamp
-	r.tombstone = tombstone
-	r.keySize = keySize
-	r.valueSize = valueSize
-	r.key = key
-	r.value = value
+func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value []byte) *Record {
+	return &Record{
+		crc32:     crc32,
+		timestamp: timestamp,
+		tombstone: tombstone,
+		keySize:   keySize,
+		valueSize: valueSize,
+		key:       key,
+		value:     value,
+	}
 }
 
-func CalculateCRC(timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value string) uint32 {
+func CalculateCRC(timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value []byte) uint32 {
 	bufferSize := 25 + keySize + valueSize // 25 zato sto su svi pre key i value fiksni, a key i value su promenljive duzine, crc nije uracunat
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint64(buffer[0:8], uint64(timestamp))
@@ -49,7 +54,7 @@ func CalculateCRC(timestamp int64, tombstone bool, keySize int64, valueSize int6
 	binary.BigEndian.PutUint64(buffer[9:17], uint64(keySize))
 	binary.BigEndian.PutUint64(buffer[17:25], uint64(valueSize))
 	copy(buffer[25:25+keySize], []byte(key))
-	copy(buffer[25+keySize:bufferSize], []byte(value))
+	copy(buffer[25+keySize:bufferSize], value)
 
 	return crc32.ChecksumIEEE(buffer)
 }
@@ -67,6 +72,6 @@ func (r Record) ToBytes() []byte {
 	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.keySize))
 	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.valueSize))
 	copy(buffer[29:29+r.keySize], []byte(r.key))
-	copy(buffer[29+r.keySize:bufferSize], []byte(r.value))
+	copy(buffer[29+r.keySize:bufferSize], r.value)
 	return buffer
 }

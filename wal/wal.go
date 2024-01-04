@@ -9,70 +9,63 @@ import (
 	"strconv"
 )
 
-/* Ova struktura nam sluzi pri ucitavanju WAL-a */
-type WalOptions struct {
-	NumberOfSegments int `json:"NumberOfSegments"`
-	LowWaterMark     int `json:"LowWaterMark"`
-}
-
-func (wo *WalOptions) WalOptions(NumberOfSegments int, LowWaterMark int) {
-	wo.NumberOfSegments = NumberOfSegments
-	wo.LowWaterMark = LowWaterMark
-}
-
 type Wal struct {
-	segments   []*Segment
-	walOptions *WalOptions
+	NumberOfSegments           int `json:"NumberOfSegments"`
+	LowWaterMark               int `json:"LowWaterMark"`
+	SegmentSize                int `json:"SegmentSize"`
+	LastSegmentNumberOfRecords int `json:"LastSegmentNumberOfRecords"`
 }
 
-/* Inicijalno kreiranje novog WAL-a */
-func (w *Wal) Wal() {
-	w.walOptions = new(WalOptions)
-	w.walOptions.WalOptions(1, 0)
-
-	w.segments = make([]*Segment, 1) // inijalno postoji jedan segment
-	w.segments[0] = new(Segment)
-	w.segments[0].NewSegment(getPath(w.walOptions.NumberOfSegments))
-}
-
-/* Ucitavanje svih zapisa odjednom */
-func (w *Wal) LoadAllRecords() {
+func LoadWal() *Wal {
+	w := new(Wal)
 	w.LoadJson()
-	w.LoadSegments()
-}
-
-/* Ucitavanje jednog po jednog zapisa */
-func (w *Wal) LoadNextRecord() {
-	w.LoadJson()
-	if len(w.segments[len(w.segments)-1].records) == 64 {
-		newSegment := new(Segment)
-		newSegment.NewSegment(getPath(len(w.segments) + 1))
-		w.segments = append(w.segments, newSegment)
-	}
-	fileName := getPath(len(w.segments))
-
-	w.GetNextRecord(fileName)
+	return w
 }
 
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
-func (w *Wal) AddRecord(key string, value string) {
-	walRecord := new(Record)
-	walRecord.NewRecord(key, value)
-	lastSegment := w.segments[w.walOptions.NumberOfSegments-1]
+func (w *Wal) AddRecord(key string, value []byte) {
+	record := NewRecord(key, value)
 
-	if len(lastSegment.records) == 64 {
-		w.walOptions.NumberOfSegments++
-		walSegment := new(Segment)
-		walSegment.NewSegment(getPath(w.walOptions.NumberOfSegments))
-		w.segments = append(w.segments, walSegment)
-		lastSegment = walSegment
-		w.WriteJson()
+	if w.LastSegmentNumberOfRecords == w.SegmentSize {
+		w.NumberOfSegments++
+		w.LastSegmentNumberOfRecords = 0
 	}
-	lastSegment.AddRecordToSegment(*walRecord)
+
+	w.AddRecordToSegment(*record)
 }
 
-/* Ova funkcija ucitava sledeci zapis na osnovu poslednje procitanog */
-func (w *Wal) GetNextRecord(fileName string) {
+func (w *Wal) AddRecordToSegment(record Record) {
+	w.LastSegmentNumberOfRecords++
+	w.WriteRecord(record)
+	w.WriteJson()
+}
+
+func (w Wal) WriteRecord(record Record) {
+	recordBytes := record.ToBytes()
+
+	f, _ := os.OpenFile(getPath(w.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
+	defer f.Close()
+
+	f.Write(recordBytes)
+}
+
+/* Ucitavanje svih zapisa odjednom */
+func (w *Wal) LoadAllRecords() []*Record {
+	var records []*Record
+
+	w.LoadJson()
+
+	for i := 1; i <= w.NumberOfSegments; i++ {
+		records = append(records, w.LoadRecordsFromSegment(getPath(i))...)
+	}
+
+	return records
+}
+
+/* Ucitava sve zapise segmenta u memoriju */
+func (w *Wal) LoadRecordsFromSegment(fileName string) []*Record {
+	var records []*Record
+
 	f, _ := os.OpenFile(fileName, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -81,66 +74,52 @@ func (w *Wal) GetNextRecord(fileName string) {
 	data := make([]byte, stat.Size())
 	f.Read(data)
 
-	offset := w.CalculateOffset() // vrednost za koju pomeramo pokazivac u fajlu, pamtimo dokle je ucitano
-	data = data[offset:]
-	crc32 := binary.BigEndian.Uint32(data[0:4])
-	timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
-	tombstone := false
-	if data[12] == 1 {
-		tombstone = true
-	}
-	keySize := int64(binary.BigEndian.Uint64(data[13:21]))
-	valueSize := int64(binary.BigEndian.Uint64(data[21:29]))
-	key := string(data[29 : 29+keySize])
-	value := string(data[29+keySize : 29+keySize+valueSize])
+	for len(data) != 0 { // ucitavaj iz fajla sve dok ima nesto
+		crc32 := binary.BigEndian.Uint32(data[0:4])
+		timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
+		tombstone := false
+		if data[12] == 1 {
+			tombstone = true
+		}
+		keySize := int64(binary.BigEndian.Uint64(data[13:21]))
+		valueSize := int64(binary.BigEndian.Uint64(data[21:29]))
+		key := string(data[29 : 29+keySize])
+		value := data[29+keySize : 29+keySize+valueSize]
 
-	checkCrc32 := CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
+		checkCrc32 := CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
 
-	if checkCrc32 == crc32 { // proveravanje da li je doslo do promene zapisa
-		loadedRecord := new(Record)
-		loadedRecord.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
-		lastSegment := w.segments[len(w.segments)-1]
-		lastSegment.records = append(lastSegment.records, loadedRecord)
-	}
-}
+		if checkCrc32 == crc32 { // potrebno je pri ucitavanju proveriti da li je doslo do promene zapisa
+			loadedRecord := LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
+			records = append(records, loadedRecord)
+		}
 
-/* Racuna koliko je zapisa procitano i za koliko se pomeramo pri citanju */
-func (w *Wal) CalculateOffset() int {
-	lastSegment := w.segments[len(w.segments)-1]
-	offset := 0
-
-	for i := 0; i < len(lastSegment.records); i++ {
-		offset += len(lastSegment.records[i].ToBytes())
+		data = data[29+keySize+valueSize:]
 	}
 
-	return offset
-}
-
-/* Ucitava sve segmente u memoriju */
-func (w *Wal) LoadSegments() {
-	for i := 1; i <= w.walOptions.NumberOfSegments; i++ {
-		loadedSegment := new(Segment)
-		loadedSegment.LoadSegment(getPath(i))
-		w.segments = append(w.segments, loadedSegment)
-	}
-}
-
-func (w *Wal) ChangeLowWaterMark(newLowWaterMark int) {
-	w.walOptions.LowWaterMark = newLowWaterMark
-	w.WriteJson()
+	return records
 }
 
 /* Brise segmente na osnovu lowWaterMark iz WalOptions */
 func (w *Wal) DeleteSegments() {
-	for i := 1; i <= w.walOptions.LowWaterMark; i++ {
-		w.walOptions.NumberOfSegments--
-		w.segments = w.segments[1:]
+	for i := 1; i <= w.LowWaterMark; i++ {
+		w.NumberOfSegments--
 		os.Remove(getPath(i)) // brise fajl
 	}
-	for i := 1; i <= w.walOptions.NumberOfSegments; i++ {
-		w.segments[i-1].fileName = getPath(i)
-		os.Rename(getPath(w.walOptions.LowWaterMark+i), getPath(i)) // preimenuje fajl
+
+	for i := 1; i <= w.NumberOfSegments; i++ {
+		os.Rename(getPath(w.LowWaterMark+i), getPath(i)) // preimenuje fajl
 	}
+
+	if w.NumberOfSegments == 0 { // ako su obrisani svi segmenti
+		w.NumberOfSegments = 1           // uvek mora postojati jedan u koji se upisuje
+		w.LastSegmentNumberOfRecords = 0 // prazan je
+	}
+
+	w.WriteJson()
+}
+
+func (w *Wal) ChangeLowWaterMark(newLowWaterMark int) {
+	w.LowWaterMark = newLowWaterMark
 	w.WriteJson()
 }
 
@@ -170,12 +149,12 @@ func getPath(numberOfSegment int) string {
 func (w *Wal) LoadJson() {
 	jsonData, _ := os.ReadFile(WAL_CONFIG_FILE_PATH)
 
-	json.Unmarshal(jsonData, &w.walOptions)
+	json.Unmarshal(jsonData, &w)
 }
 
 /* Upisuje WalOptions u config JSON fajl */
 func (w *Wal) WriteJson() {
-	jsonData, _ := json.MarshalIndent(w.walOptions, "", "  ")
+	jsonData, _ := json.MarshalIndent(w, "", "  ")
 
 	os.WriteFile(WAL_CONFIG_FILE_PATH, jsonData, 0644)
 }
