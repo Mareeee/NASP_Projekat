@@ -1,9 +1,7 @@
 package main
 
-import (
-	"fmt"
-)
+//import "main/wal"
 
 func main() {
-	fmt.Println("Napredni Algoritmi i Strukture Podataka!")
+	//wal_object := wal.LoadWal()
 }
