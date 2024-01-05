@@ -1,10 +1,9 @@
 package main
 
 import (
-	"main/wal"
+	"fmt"
 )
 
 func main() {
-	wal_object := wal.LoadWal()
-	wal_object.AddRecord("Marko", []byte("Senta"))
+	fmt.Println("Napredni Algoritmi i Strukture Podataka!")
 }

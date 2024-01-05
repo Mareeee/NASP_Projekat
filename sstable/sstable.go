@@ -2,6 +2,7 @@ package sstable
 
 import (
 	"main/record"
+	"main/bloomfilter"
 )
 
 type SSTable struct {
