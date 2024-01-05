@@ -2,46 +2,76 @@ package memtable
 
 import (
 	"encoding/json"
-	"fmt"
 	"main/record"
 	"main/skiplist"
 	"os"
 )
 
 type Memtable struct {
-	MemtableSize      uint64 `json:"memtable_size"`
-	MemtableStructure string `json:"memtable_structure"`
-	SkipList          skiplist.SkipList
-	records           []record.Record // obrisi kasnije
+	skiplist    *skiplist.SkipList // promeniti da moze da bude i btree
+	currentSize int
+	options     MemtableOptions
+}
+
+type MemtableOptions struct {
+	MaxSize           int    `json:"MaxSize"` // u prezentaciji oko 4MB
+	MemtableStructure string `json:"MemtableStructure"`
 }
 
 func (mt *Memtable) MemtableConstructor() {
-	mt.records = make([]record.Record, 10)
-}
-
-func (mt *Memtable) LoadMemtable() {
-	data, _ := os.ReadFile("memtable/data/memtable.json")
-	json.Unmarshal(data, &mt) // upisuje podatke iz json-a u memtable
-}
-
-func (mt *Memtable) ReadMemtable() {
-	for i := 0; i < len(mt.records); i++ {
-		fmt.Println(mt.records[i])
+	mt.currentSize = 0
+	mt.options.LoadJson()
+	if mt.options.MemtableStructure == "skiplist" {
+		mt.skiplist = skiplist.NewSkipList()
+	} else {
+		mt.skiplist = nil
 	}
 }
 
-func (mt *Memtable) AddRecord(record record.Record) {
-	mt.SkipList.Insert(record)
+func (mt *Memtable) Insert(record record.Record) {
+	if mt.currentSize < mt.options.MaxSize {
+		_, found := mt.skiplist.Search(record.Key)
+		if found {
+			mt.Update(record)
+		} else {
+			mt.skiplist.Insert(record)
+		}
+		mt.currentSize += 1
+	} else {
+		mt.Flush()
+	}
 }
 
-func (mt *Memtable) DeleteMemtable() {
-
+func (mt *Memtable) Update(record record.Record) {
+	node, found := mt.skiplist.Search(record.Key)
+	if found == true {
+		node.Record.Tombstone = false
+	}
 }
 
-func (mt *Memtable) Flush() { // Flush to SSTable
-
+func (mt *Memtable) Delete(record record.Record) {
+	node, found := mt.skiplist.Search(record.Key)
+	if found == true {
+		node.Record.Tombstone = false
+	}
 }
 
-func (mt *Memtable) Sort() {
+func (mt *Memtable) Flush() {
+	mt.currentSize = 0
+	mt.skiplist = nil
+	mt.skiplist = skiplist.NewSkipList()
+}
 
+/* Ucitava MemtableOptions iz config JSON fajla */
+func (mto *MemtableOptions) LoadJson() {
+	jsonData, _ := os.ReadFile(MEMTABLE_CONFIG_FILE_PATH)
+
+	json.Unmarshal(jsonData, &mto)
+}
+
+/* Upisuje MemtableOptions u config JSON fajl */
+func (mto *MemtableOptions) WriteJson() {
+	jsonData, _ := json.MarshalIndent(mto, "", "  ")
+
+	os.WriteFile(MEMTABLE_CONFIG_FILE_PATH, jsonData, 0644)
 }
