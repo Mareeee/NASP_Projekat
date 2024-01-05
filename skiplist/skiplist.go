@@ -9,13 +9,13 @@ import (
 )
 
 type Node struct {
-	record record.Record
+	Record record.Record
 	next   []*Node
 }
 
 func newNode(record record.Record, level int) *Node {
 	return &Node{
-		record: record,
+		Record: record,
 		next:   make([]*Node, level+1),
 	}
 }
@@ -43,12 +43,12 @@ func NewSkipList() *SkipList {
 func (sl *SkipList) Search(key string) (*Node, bool) {
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < key {
+		for current.next[i] != nil && current.next[i].Record.Key < key {
 			current = current.next[i]
 		}
 	}
 
-	return current.next[0], current.next[0] != nil && current.next[0].record.Key == key
+	return current.next[0], current.next[0] != nil && current.next[0].Record.Key == key
 }
 
 func (sl *SkipList) Insert(record record.Record) {
@@ -56,7 +56,7 @@ func (sl *SkipList) Insert(record record.Record) {
 	new := newNode(record, level)
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < record.Key {
+		for current.next[i] != nil && current.next[i].Record.Key < record.Key {
 			current = current.next[i]
 		}
 		new.next[i] = current.next[i]
@@ -71,7 +71,7 @@ func (sl *SkipList) Delete(key string) (bool, error) {
 	}
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < key {
+		for current.next[i] != nil && current.next[i].Record.Key < key {
 			current = current.next[i]
 		}
 		current.next[i] = nodeToDel.next[i]
