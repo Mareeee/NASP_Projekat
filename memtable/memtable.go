@@ -5,6 +5,7 @@ import (
 	"main/record"
 	"main/skiplist"
 	"os"
+	"time"
 )
 
 type Memtable struct {
@@ -32,7 +33,7 @@ func (mt *Memtable) Insert(record record.Record) {
 	if mt.currentSize < mt.options.MaxSize {
 		_, found := mt.skiplist.Search(record.Key)
 		if found {
-			mt.Update(record)
+			mt.Update(record.Key, record.Value)
 		} else {
 			mt.skiplist.Insert(record)
 		}
@@ -42,17 +43,19 @@ func (mt *Memtable) Insert(record record.Record) {
 	}
 }
 
-func (mt *Memtable) Update(record record.Record) {
-	node, found := mt.skiplist.Search(record.Key)
-	if found == true {
-		node.Record.Tombstone = false
+func (mt *Memtable) Update(key string, value []byte) {
+	node, found := mt.skiplist.Search(key)
+	if found {
+		node.Record.Timestamp = time.Now().Unix()
+		node.Record.Value = value
+		node.Record.ValueSize = int64(len(value))
 	}
 }
 
 func (mt *Memtable) Delete(record record.Record) {
 	node, found := mt.skiplist.Search(record.Key)
-	if found == true {
-		node.Record.Tombstone = false
+	if found {
+		node.Record.Tombstone = true
 	}
 }
 
