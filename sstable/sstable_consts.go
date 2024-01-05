@@ -6,5 +6,5 @@ const (
 	INDEX_FILE_PATH          = "data/sstable/sstable_index_"
 	SUMMARY_FILE_PATH        = "data/sstable/sstable_summary_"
 	FILTER_FILE_PATH         = "data/sstable/sstable_filter_"
-	METADATA_PATH            = "data/sstable/sstable_metadata_"
+	METADATA_FILE_PATH       = "data/sstable/sstable_metadata_"
 )
