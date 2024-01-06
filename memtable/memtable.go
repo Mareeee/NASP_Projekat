@@ -36,10 +36,11 @@ func (mt *Memtable) Insert(record record.Record) {
 			mt.Update(record.Key, record.Value)
 		} else {
 			mt.skiplist.Insert(record)
+			mt.currentSize += 1
 		}
-		mt.currentSize += 1
 	} else {
 		mt.Flush()
+		mt.Insert(record)
 	}
 }
 
