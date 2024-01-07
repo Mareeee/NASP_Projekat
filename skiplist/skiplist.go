@@ -13,15 +13,13 @@ type Node struct {
 	next   []*Node
 }
 
-func newNode(record record.Record, level int) *Node {
-	return &Node{
-		record: record,
-		next:   make([]*Node, level+1),
-	}
+func (node Node) GetValue() []byte {
+	return node.record.Value
 }
 
-type SkipListOptions struct {
-	MaxHeight int `json:"MaxHeight"`
+func (node *Node) newNode(value, level int) {
+	node.record.Value = value
+	node.next = make([]*Node, level+1) // next u i-tom redu
 }
 
 type SkipList struct {

@@ -54,8 +54,6 @@ func (w Wal) WriteRecord(record record.Record) {
 func (w *Wal) LoadAllRecords() []*record.Record {
 	var records []*record.Record
 
-	w.LoadJson()
-
 	for i := 1; i <= w.NumberOfSegments; i++ {
 		records = append(records, w.LoadRecordsFromSegment(getPath(i))...)
 	}
