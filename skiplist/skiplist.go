@@ -16,7 +16,7 @@ func (node Node) GetValue() []byte {
 }
 
 func (node *Node) newNode(value, level int) {
-	node.value = value
+	node.record.Value = value
 	node.next = make([]*Node, level+1) // next u i-tom redu
 }
 

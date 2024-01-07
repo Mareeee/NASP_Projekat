@@ -58,17 +58,17 @@ func (bf *BloomFilter) toBytes() []byte {
 	return buffer
 }
 
-func (bf *BloomFilter) WriteToBinFile() {
+func (bf *BloomFilter) WriteToBinFile(filepath string) {
 	data := bf.toBytes()
 
-	f, _ := os.OpenFile(BLOOM_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	f, _ := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 
 	f.Write(data)
 }
 
-func (bf *BloomFilter) LoadBloomFilter() {
-	f, _ := os.OpenFile(BLOOM_FILE_PATH, os.O_RDONLY, 0644)
+func (bf *BloomFilter) LoadBloomFilter(filepath string) {
+	f, _ := os.OpenFile(filepath, os.O_RDONLY, 0644)
 	defer f.Close()
 
 	stat, _ := f.Stat()
