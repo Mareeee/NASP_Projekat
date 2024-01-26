@@ -86,23 +86,36 @@ func (hll *HLL) toBytes() []byte {
 	return buffer
 }
 
-func (hll *HLL) WriteToBinFile() {
+func (hll *HLL) WriteToBinFile() error {
 	data := hll.toBytes()
 
-	f, _ := os.OpenFile(HLL_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(HLL_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
-	f.Write(data)
+	_, err = f.Write(data)
+	return err
 }
 
-func (hll *HLL) LoadHLL() {
-	f, _ := os.OpenFile(HLL_FILE_PATH, os.O_RDONLY, 0644)
+func (hll *HLL) LoadHLL() error {
+	f, err := os.OpenFile(HLL_FILE_PATH, os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
-	stat, _ := f.Stat()
+	stat, err := f.Stat()
+	if err != nil {
+		return err
+	}
 
 	data := make([]byte, stat.Size())
-	f.Read(data)
+	_, err = f.Read(data)
+	if err != nil {
+		return err
+	}
 
 	hll.m = binary.BigEndian.Uint64(data[0:8])
 
@@ -118,4 +131,6 @@ func (hll *HLL) LoadHLL() {
 		}
 		offSet += 1
 	}
+
+	return nil
 }
