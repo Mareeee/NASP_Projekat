@@ -89,6 +89,19 @@ func (sl *SkipList) roll() int {
 	return level
 }
 
+func (sl *SkipList) GetRecords() []record.Record {
+	var elements []record.Record
+
+	current := sl.head.next[0]
+
+	for current != nil {
+		elements = append(elements, current.Record)
+		current = current.next[0]
+	}
+
+	return elements
+}
+
 /* Ucitava WalOptions iz config JSON fajla */
 func (o *SkipListOptions) LoadJson() {
 	jsonData, _ := os.ReadFile(SKIPLIST_CONFIG_FILE_PATH)

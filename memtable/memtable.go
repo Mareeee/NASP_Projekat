@@ -60,10 +60,12 @@ func (mt *Memtable) Delete(record record.Record) {
 	}
 }
 
-func (mt *Memtable) Flush() {
+func (mt *Memtable) Flush() []record.Record {
+	elements := mt.skiplist.GetRecords()
 	mt.currentSize = 0
 	mt.skiplist = nil
 	mt.skiplist = skiplist.NewSkipList()
+	return elements
 }
 
 /* Ucitava MemtableOptions iz config JSON fajla */
