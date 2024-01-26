@@ -3,8 +3,11 @@ package sstable
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"main/bloom-filter"
+	"main/merkle"
 	"main/record"
 	"os"
 	"strconv"
@@ -17,9 +20,9 @@ type SSTableOptions struct {
 }
 
 type SSTable struct {
-	filter *bloom.BloomFilter
-	// metadata *merkle.MerkleTree
-	options SSTableOptions
+	filter   *bloom.BloomFilter
+	metadata *merkle.MerkleTree
+	options  SSTableOptions
 }
 
 //		INDEX ENTRY NA DISKU
@@ -77,14 +80,32 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
 }
 
 func (s *SSTable) writeIndex(index []IndexEntry) {
-	f, _ := os.OpenFile(INDEX_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(INDEX_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println("Error opening or creating index file:", err)
+		return
+	}
 	defer f.Close()
 
 	for _, entry := range index {
 		keyBytes := []byte(entry.key)
-		binary.Write(f, binary.BigEndian, int64(len(keyBytes)))
-		f.Write(keyBytes)
-		binary.Write(f, binary.BigEndian, entry.offset)
+
+		err := binary.Write(f, binary.BigEndian, int64(len(keyBytes)))
+		if err != nil {
+			fmt.Println("Error writing key size:", err)
+			return
+		}
+		_, err = f.Write(keyBytes)
+		if err != nil {
+			fmt.Println("Error writing key:", err)
+			return
+		}
+
+		err = binary.Write(f, binary.BigEndian, entry.offset)
+		if err != nil {
+			fmt.Println("Error writing offset:", err)
+			return
+		}
 	}
 }
 
@@ -114,46 +135,70 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 }
 
 func (s *SSTable) writeSummaryToFile(summary []SummaryEntry) {
-	f, _ := os.OpenFile(SUMMARY_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(SUMMARY_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println("Error opening or creating summary file:", err)
+		return
+	}
 	defer f.Close()
 
 	for _, entry := range summary {
 		firstKeyBytes := []byte(entry.firstKey)
 		lastKeyBytes := []byte(entry.lastKey)
 
-		binary.Write(f, binary.BigEndian, int64(len(firstKeyBytes)))
-		f.Write(firstKeyBytes)
+		err := binary.Write(f, binary.BigEndian, int64(len(firstKeyBytes)))
+		if err != nil {
+			fmt.Println("Error writing first key size:", err)
+			return
+		}
+		_, err = f.Write(firstKeyBytes)
+		if err != nil {
+			fmt.Println("Error writing first key:", err)
+			return
+		}
 
-		binary.Write(f, binary.BigEndian, int64(len(lastKeyBytes)))
-		f.Write(lastKeyBytes)
+		err = binary.Write(f, binary.BigEndian, int64(len(lastKeyBytes)))
+		if err != nil {
+			fmt.Println("Error writing last key size:", err)
+			return
+		}
+		_, err = f.Write(lastKeyBytes)
+		if err != nil {
+			fmt.Println("Error writing last key:", err)
+			return
+		}
 
-		binary.Write(f, binary.BigEndian, entry.offset)
+		err = binary.Write(f, binary.BigEndian, entry.offset)
+		if err != nil {
+			fmt.Println("Error writing offset:", err)
+			return
+		}
 	}
 }
 
-func Search(key string) string {
+func Search(key string) (*record.Record, error) {
 	options := new(SSTableOptions)
 	options.LoadJson()
 	fileNumber := findSSTableNumber(key, options.NumberOfSSTables) // broj tabele u kojoj je zapis
 	if fileNumber == -1 {
-		return "Inputed key does not exist in SSTable!"
+		return nil, errors.New("Inputed key does not exist in SSTable!")
 	}
 
 	lastKey, offset := loadAndFindIndexOffset(fileNumber, key)
 	if lastKey == "" && offset == -1 {
-		return "Inputed key does not exist!"
+		return nil, errors.New("Inputed key does not exist!")
 	}
 
 	valueOffset := loadAndFindValueOffset(fileNumber, uint64(offset), key, lastKey)
 	if valueOffset == -1 {
-		return "Inputed key does not exist!"
+		return nil, errors.New("Inputed key does not exist!")
 	}
 
 	record := loadRecord(fileNumber, key, uint64(valueOffset))
 	if record == nil {
-		return "Inputed key does not exist!"
+		return nil, errors.New("Inputed key does not exist!")
 	}
-	return record.Key
+	return record, nil
 }
 
 // trazimo SSTabelu gde gde je sa velikom verovatnocom nas zapis
@@ -170,35 +215,63 @@ func findSSTableNumber(key string, numOfSSTables int) int {
 }
 
 func loadAndFindIndexOffset(fileNumber int, key string) (string, int64) {
-	f, _ := os.Open(SUMMARY_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(SUMMARY_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return "", -1
+	}
 	defer f.Close()
 
 	var initialOffset int64 = 0
 
 	for {
-		f.Seek(initialOffset, io.SeekStart)
+		_, seekErr := f.Seek(initialOffset, io.SeekStart)
+		if seekErr != nil {
+			fmt.Println("Error seeking in file:", seekErr)
+			return "", -1
+		}
 
 		firstKeySizeBytes := make([]byte, 8)
 		_, readErr := f.Read(firstKeySizeBytes)
-		if readErr == io.EOF { // proveravamo da li smo dosli do kraja fajla
+		if readErr == io.EOF {
+			fmt.Println("End of file reached.")
+			return "", -1
+		} else if readErr != nil {
+			fmt.Println("Error reading first key size:", readErr)
 			return "", -1
 		}
 		firstKeySize := binary.BigEndian.Uint64(firstKeySizeBytes)
 
 		firstKeyBytes := make([]byte, firstKeySize)
-		f.Read(firstKeyBytes)
+		_, readErr = f.Read(firstKeyBytes)
+		if readErr != nil {
+			fmt.Println("Error reading first key:", readErr)
+			return "", -1
+		}
 		firstKey := string(firstKeyBytes)
 
 		lastKeySizeBytes := make([]byte, 8)
-		f.Read(lastKeySizeBytes)
+		_, readErr = f.Read(lastKeySizeBytes)
+		if readErr != nil {
+			fmt.Println("Error reading last key size:", readErr)
+			return "", -1
+		}
 		lastKeySize := binary.BigEndian.Uint64(lastKeySizeBytes)
 
 		lastKeyBytes := make([]byte, lastKeySize)
-		f.Read(lastKeyBytes)
+		_, readErr = f.Read(lastKeyBytes)
+		if readErr != nil {
+			fmt.Println("Error reading last key:", readErr)
+			return "", -1
+		}
 		lastKey := string(lastKeyBytes)
 
 		offsetBytes := make([]byte, 8)
-		f.Read(offsetBytes)
+		_, readErr = f.Read(offsetBytes)
+		if readErr != nil {
+			fmt.Println("Error reading offset:", readErr)
+			return "", -1
+		}
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
 		if key >= firstKey && key <= lastKey {
@@ -210,51 +283,82 @@ func loadAndFindIndexOffset(fileNumber int, key string) (string, int64) {
 }
 
 func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, lastKey string) int64 {
-	f, _ := os.Open(INDEX_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(INDEX_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return -1
+	}
 	defer f.Close()
 
 	for {
-		f.Seek(int64(summaryOffset), io.SeekStart)
+		_, seekErr := f.Seek(int64(summaryOffset), io.SeekStart)
+		if seekErr != nil {
+			fmt.Println("Error seeking in file:", seekErr)
+			return -1
+		}
 
 		keySizeBytes := make([]byte, 8)
 		_, readErr := f.Read(keySizeBytes)
-		if readErr == io.EOF { // provera da li smo dosli do kraja fajla
+		if readErr == io.EOF {
 			break
+		} else if readErr != nil {
+			fmt.Println("Error reading key size:", readErr)
+			return -1
 		}
 		keySize := binary.BigEndian.Uint64(keySizeBytes)
 
 		keyBytes := make([]byte, keySize)
-		f.Read(keyBytes)
+		_, readErr = f.Read(keyBytes)
+		if readErr != nil {
+			fmt.Println("Error reading key:", readErr)
+			return -1
+		}
 		foundKey := string(keyBytes)
 
 		offsetBytes := make([]byte, 8)
-		f.Read(offsetBytes)
+		_, readErr = f.Read(offsetBytes)
+		if readErr != nil {
+			fmt.Println("Error reading offset:", readErr)
+			return -1
+		}
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
 		if key >= foundKey {
 			return offset
 		}
 
-		// ako prodjemo citav interval na indeksnoj tabeli, vracamo gresku da nismo nasli kljuc
 		if foundKey == lastKey {
 			break
 		}
 
 		summaryOffset += 16 + keySize
 	}
+
+	fmt.Println("Key not found.")
 	return -1
 }
 
 func loadRecord(fileNumber int, key string, valueOffset uint64) *record.Record {
-	f, _ := os.Open(DATA_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(DATA_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	if err != nil {
+		fmt.Println("Error opening data file:", err)
+		return nil
+	}
 	defer f.Close()
 
 	for {
-		f.Seek(int64(valueOffset), io.SeekStart)
+		_, seekErr := f.Seek(int64(valueOffset), io.SeekStart)
+		if seekErr != nil {
+			fmt.Println("Error seeking in data file:", seekErr)
+			return nil
+		}
 
 		headerBytes := make([]byte, 29)
 		_, readErr := f.Read(headerBytes)
-		if readErr == io.EOF { // provera da li smo stigli do kraja fajla
+		if readErr == io.EOF {
+			return nil
+		} else if readErr != nil {
+			fmt.Println("Error reading header:", readErr)
 			return nil
 		}
 
@@ -265,18 +369,25 @@ func loadRecord(fileNumber int, key string, valueOffset uint64) *record.Record {
 		valueSize := int64(binary.BigEndian.Uint64(headerBytes[21:29]))
 
 		keyBytes := make([]byte, keySize)
-		f.Read(keyBytes)
+		_, readErr = f.Read(keyBytes)
+		if readErr != nil {
+			fmt.Println("Error reading key:", readErr)
+			return nil
+		}
 		loadedKey := string(keyBytes)
 
 		value := make([]byte, valueSize)
-		f.Read(value)
+		_, readErr = f.Read(value)
+		if readErr != nil {
+			fmt.Println("Error reading value:", readErr)
+			return nil
+		}
 
 		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
-		if checkCrc32 != crc32 { // potrebno je pri ucitavanju proveriti da li je doslo do promene zapisa
+		if checkCrc32 != crc32 {
 			continue
 		}
 
-		// uporedjujemo ucitan kljuc iz rekorda sa korisnikovim kljucem, ako su isti vracamo vrednost rekroda
 		if loadedKey == key {
 			return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value)
 		}
@@ -297,27 +408,52 @@ func (s *SSTable) createFilter(allRecords []record.Record) {
 }
 
 func (s *SSTable) createMetaData(allRecords []record.Record) {
-	// ovde treba da se svi rekordi prevedi u nizove nizova bajtova i da se od toga napravi merkle
-	// serijalizacija
+	var allRecordsBytes [][]byte
+	for _, record := range allRecords {
+		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+	}
+	s.metadata = merkle.NewMerkleTree(allRecordsBytes)
+	//s.metadata.WriteToBinFile()
 }
 
 func (s *SSTable) WriteRecord(record record.Record, filepath string) {
 	recordBytes := record.ToBytes()
 
-	f, _ := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println("Error opening or creating file:", err)
+		return
+	}
 	defer f.Close()
 
-	f.Write(recordBytes)
+	_, writeErr := f.Write(recordBytes)
+	if writeErr != nil {
+		fmt.Println("Error writing record to file:", writeErr)
+	}
 }
 
 func (o *SSTableOptions) LoadJson() {
-	jsonData, _ := os.ReadFile(SSTABLE_CONFIG_FILE_PATH)
+	jsonData, err := os.ReadFile(SSTABLE_CONFIG_FILE_PATH)
+	if err != nil {
+		fmt.Println("Error reading JSON file:", err)
+		return
+	}
 
-	json.Unmarshal(jsonData, &o)
+	err = json.Unmarshal(jsonData, o)
+	if err != nil {
+		fmt.Println("Error unmarshalling JSON data:", err)
+	}
 }
 
 func (o *SSTableOptions) WriteJson() {
-	jsonData, _ := json.MarshalIndent(o, "", "  ")
+	jsonData, err := json.MarshalIndent(o, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshalling JSON data:", err)
+		return
+	}
 
-	os.WriteFile(SSTABLE_CONFIG_FILE_PATH, jsonData, 0644)
+	err = os.WriteFile(SSTABLE_CONFIG_FILE_PATH, jsonData, 0644)
+	if err != nil {
+		fmt.Println("Error writing JSON file:", err)
+	}
 }
