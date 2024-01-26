@@ -66,34 +66,45 @@ func (cms *CountMinSketch) toBytes() []byte {
 		copy(buffer[offSet:offSet+32], cms.hf[i].Seed)
 		offSet += 32
 	}
-	// fmt.Println(bufferSize)
 	for i := uint32(0); i < cms.k; i++ {
 		for j := uint32(0); j < cms.m; j++ {
 			binary.BigEndian.PutUint32(buffer[offSet:offSet+4], cms.matrix[i][j])
-			// fmt.Println(offSet)
 			offSet += 4
 		}
 	}
 	return buffer
 }
 
-func (cms *CountMinSketch) WriteToBinFile() {
+func (cms *CountMinSketch) WriteToBinFile() error {
 	data := cms.toBytes()
 
-	f, _ := os.OpenFile(CMS_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(CMS_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
-	f.Write(data)
+	_, err = f.Write(data)
+	return err
 }
 
-func (cms *CountMinSketch) LoadCMS() {
-	f, _ := os.OpenFile(CMS_FILE_PATH, os.O_RDONLY, 0644)
+func (cms *CountMinSketch) LoadCMS() error {
+	f, err := os.OpenFile(CMS_FILE_PATH, os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
-	stat, _ := f.Stat()
+	stat, err := f.Stat()
+	if err != nil {
+		return err
+	}
 
 	data := make([]byte, stat.Size())
-	f.Read(data)
+	_, err = f.Read(data)
+	if err != nil {
+		return err
+	}
 
 	cms.m = binary.BigEndian.Uint32(data[0:4])
 	cms.k = binary.BigEndian.Uint32(data[4:8])
@@ -117,4 +128,5 @@ func (cms *CountMinSketch) LoadCMS() {
 			offSet += 4
 		}
 	}
+	return nil
 }

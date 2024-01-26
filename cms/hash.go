@@ -12,7 +12,10 @@ type HashWithSeed struct {
 
 func (h HashWithSeed) Hash(data []byte) uint64 {
 	fn := md5.New()
-	fn.Write(append(data, h.Seed...))
+	_, err := fn.Write(append(data, h.Seed...))
+	if err != nil {
+		return 0
+	}
 	return binary.BigEndian.Uint64(fn.Sum(nil))
 }
 
