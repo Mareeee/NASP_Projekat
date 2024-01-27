@@ -1,5 +1,5 @@
 {
-  "NumberOfSSTables": 1,
+  "NumberOfSSTables": 3,
   "IndexInterval": 2,
   "SummaryInterval": 2
 }

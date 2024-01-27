@@ -1,40 +1,21 @@
 package main
 
-import (
-	"fmt"
-	tBucket "main/tokenBucket"
-	"time"
-)
+import "main/lsm"
+
+// tBucket "main/tokenBucket"
 
 func main() {
-	tb := tBucket.LoadTokenBucket()
+	// wal := wal.LoadWal()
+	// wal.WriteRecord(*record.NewRecord("Mare", []byte("Zenta")))
+	// wal.WriteRecord(*record.NewRecord("Vlado", []byte("Zdravko")))
+	// wal.WriteRecord(*record.NewRecord("Segrecekic", []byte("Gic")))
+	// rekordi, _ := wal.LoadAllRecords()
 
-	for i := 0; i < 15; i++ {
-		if tb.Take() {
-			fmt.Println("Performing action ", i+1)
-		} else {
-			fmt.Println("Rate limit exceeded. Waiting...")
-			time.Sleep(time.Second)
-		}
-	}
-	err := tb.WriteTBToFile("data\\tokenbucket\\token_bucket_state.bin")
-	if err != nil {
-		fmt.Println("Nema error-a jer smo najjajjajjajaci")
-	}
+	// valueSlice := make([]record.Record, len(rekordi))
+	// for i, ptr := range rekordi {
+	// 	valueSlice[i] = *ptr
+	// }
 
-	deserializedTB, _ := tBucket.ReadTBFromFile("data\\tokenbucket\\token_bucket_state.bin")
-
-	fmt.Println(deserializedTB.Capacity)
-	fmt.Println(deserializedTB.LastToken)
-	fmt.Println(deserializedTB.Rate)
-	fmt.Println(deserializedTB.Tokens)
-
-	for i := 0; i < 15; i++ {
-		if deserializedTB.Take() {
-			fmt.Println("Performing action ", i+1)
-		} else {
-			fmt.Println("Rate limit exceeded. Waiting...")
-			time.Sleep(time.Second)
-		}
-	}
+	// sstable.NewSSTable(valueSlice, 1)
+	lsm.SizeTiered()
 }
