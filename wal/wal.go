@@ -41,37 +41,56 @@ func (w *Wal) AddRecordToSegment(record record.Record) {
 	w.WriteJson()
 }
 
-func (w Wal) WriteRecord(record record.Record) {
+func (w Wal) WriteRecord(record record.Record) error {
 	recordBytes := record.ToBytes()
 
-	f, _ := os.OpenFile(getPath(w.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(getPath(w.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
-	f.Write(recordBytes)
+	_, err = f.Write(recordBytes)
+	return err
 }
 
 /* Ucitavanje svih zapisa odjednom */
-func (w *Wal) LoadAllRecords() []*record.Record {
+func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record
 
+	w.LoadJson()
+
 	for i := 1; i <= w.NumberOfSegments; i++ {
-		records = append(records, w.LoadRecordsFromSegment(getPath(i))...)
+		loadedRecords, err := w.LoadRecordsFromSegment(getPath(i))
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, loadedRecords...)
 	}
 
-	return records
+	return records, nil
 }
 
 /* Ucitava sve zapise segmenta u memoriju */
-func (w *Wal) LoadRecordsFromSegment(fileName string) []*record.Record {
+func (w *Wal) LoadRecordsFromSegment(fileName string) ([]*record.Record, error) {
 	var records []*record.Record
 
-	f, _ := os.OpenFile(fileName, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
 	defer f.Close()
 
-	stat, _ := f.Stat()
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
 
 	data := make([]byte, stat.Size())
-	f.Read(data)
+	_, err = f.Read(data)
+	if err != nil {
+		return nil, err
+	}
 
 	for len(data) != 0 { // ucitavaj iz fajla sve dok ima nesto
 		crc32 := binary.BigEndian.Uint32(data[0:4])
@@ -95,7 +114,7 @@ func (w *Wal) LoadRecordsFromSegment(fileName string) []*record.Record {
 		data = data[29+keySize+valueSize:]
 	}
 
-	return records
+	return records, nil
 }
 
 /* Brise segmente na osnovu lowWaterMark iz WalOptions */
@@ -145,15 +164,21 @@ func getPath(numberOfSegment int) string {
 }
 
 /* Ucitava WalOptions iz config JSON fajla */
-func (w *Wal) LoadJson() {
-	jsonData, _ := os.ReadFile(WAL_CONFIG_FILE_PATH)
-
+func (w *Wal) LoadJson() error {
+	jsonData, err := os.ReadFile(WAL_CONFIG_FILE_PATH)
+	if err != nil {
+		return err
+	}
 	json.Unmarshal(jsonData, &w)
+	return nil
 }
 
 /* Upisuje WalOptions u config JSON fajl */
-func (w *Wal) WriteJson() {
-	jsonData, _ := json.MarshalIndent(w, "", "  ")
-
+func (w *Wal) WriteJson() error {
+	jsonData, err := json.MarshalIndent(w, "", "  ")
+	if err != nil {
+		return err
+	}
 	os.WriteFile(WAL_CONFIG_FILE_PATH, jsonData, 0644)
+	return nil
 }
