@@ -338,8 +338,7 @@ func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, la
 		summaryOffset += 16 + keySize
 	}
 
-	fmt.Println("Key not found.")
-	return -1
+	return lastReadOffset
 }
 
 func loadRecord(fileNumber int, key string, valueOffset uint64) *record.Record {

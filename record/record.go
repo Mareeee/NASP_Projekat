@@ -2,7 +2,6 @@ package record
 
 import (
 	"encoding/binary"
-	"fmt"
 	"hash/crc32"
 	"time"
 )
@@ -28,13 +27,6 @@ func NewRecord(key string, value []byte) *Record {
 		Value:     value,
 	}
 	record.Crc32 = CalculateCRC(record.Timestamp, record.Tombstone, record.KeySize, record.ValueSize, record.Key, record.Value)
-	fmt.Println(record.Crc32)
-	fmt.Println(record.Timestamp)
-	fmt.Println(record.Tombstone)
-	fmt.Println(record.KeySize)
-	fmt.Println(record.ValueSize)
-	fmt.Println(record.Key)
-	fmt.Println(record.Value)
 	return record
 }
 
