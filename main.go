@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	tBucket "main/TokenBucket"
+	tBucket "main/tokenBucket"
 	"time"
 )
 
