@@ -290,6 +290,8 @@ func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, la
 	}
 	defer f.Close()
 
+	var lastReadOffset int64
+
 	for {
 		_, seekErr := f.Seek(int64(summaryOffset), io.SeekStart)
 		if seekErr != nil {
@@ -324,7 +326,9 @@ func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, la
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
 		if key >= foundKey {
-			return offset
+			lastReadOffset = offset
+		} else {
+			return lastReadOffset
 		}
 
 		if foundKey == lastKey {
@@ -385,6 +389,7 @@ func loadRecord(fileNumber int, key string, valueOffset uint64) *record.Record {
 
 		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
 		if checkCrc32 != crc32 {
+			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
 			continue
 		}
 

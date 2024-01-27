@@ -19,6 +19,6 @@ func main() {
 
 	// sstable.NewSSTable(valueSlice)
 
-	value := sstable.Search("Mare")
-	fmt.Println(value)
+	record, _ := sstable.Search("Mare")
+	fmt.Println(string(record.Value))
 }
