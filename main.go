@@ -7,15 +7,15 @@ import (
 
 func main() {
 	// wal := wal.LoadWal()
-	// wal.AddRecord("1", []byte("Stakic"))
-	// wal.AddRecord("2", []byte("Senta"))
-	// wal.AddRecord("3", []byte("Koksi"))
-	// wal.AddRecord("4", []byte("Stakic"))
-	// wal.AddRecord("5", []byte("Senta"))
-	// wal.AddRecord("6", []byte("Koksi"))
-	// wal.AddRecord("7", []byte("Stakic"))
-	// wal.AddRecord("8", []byte("Senta"))
-	// wal.AddRecord("9", []byte("Koksi"))
+	// wal.AddRecord("a", []byte("Stakic"))
+	// wal.AddRecord("b", []byte("Senta"))
+	// wal.AddRecord("c", []byte("Koksi"))
+	// wal.AddRecord("david", []byte("Stakic"))
+	// wal.AddRecord("dacicic", []byte("Senta"))
+	// wal.AddRecord("dada", []byte("Koksi"))
+	// wal.AddRecord("g", []byte("Stakic"))
+	// wal.AddRecord("h", []byte("Senta"))
+	// wal.AddRecord("i", []byte("Koksi"))
 	// rekordi := wal.LoadAllRecords()
 
 	// valueSlice := make([]record.Record, len(rekordi))
@@ -28,7 +28,7 @@ func main() {
 	// record, _ := sstable.Search("Mare")
 	// fmt.Println(string(record.Value))
 
-	records, _ := sstable.RangeScan("3", "8")
+	records, _ := sstable.PrefixScan("da")
 	for _, record := range records {
 		fmt.Println(record.Key)
 	}
