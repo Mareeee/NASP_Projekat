@@ -1,15 +1,16 @@
 package tokenbucket
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"os"
 	"time"
 )
 
 type TokenBucket struct {
-	Capacity  int `json:"Capacity"`
-	Rate      int `json:"Rate"`
-	Tokens    int
+	Capacity  uint64 `json:"Capacity"`
+	Rate      uint64 `json:"Rate"`
+	Tokens    uint64
 	LastToken time.Time
 }
 
@@ -21,10 +22,10 @@ func LoadTokenBucket() *TokenBucket {
 	return tb
 }
 
-func (tb *TokenBucket) addToken() {
+func (tb *TokenBucket) AddToken() {
 	now := time.Now()
 	elapsed := now.Sub(tb.LastToken)
-	tokensToAdd := int(elapsed.Seconds()) * tb.Rate
+	tokensToAdd := uint64(elapsed.Seconds()) * tb.Rate
 
 	if tokensToAdd > 0 {
 		tb.Tokens = tb.Tokens + tokensToAdd
@@ -35,8 +36,53 @@ func (tb *TokenBucket) addToken() {
 	}
 }
 
+func (tb *TokenBucket) WriteTBToFile(filepath string) error {
+
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	binary := tb.toBytes()
+	file.Write(binary)
+
+	return nil
+}
+
+func (tb *TokenBucket) toBytes() []byte {
+	bufferSize := 24 + len(tb.LastToken.String())
+	buffer := make([]byte, bufferSize)
+	binary.BigEndian.PutUint64(buffer[0:8], tb.Capacity)
+	binary.BigEndian.PutUint64(buffer[8:16], tb.Rate)
+	binary.BigEndian.PutUint64(buffer[16:24], tb.Tokens)
+
+	unixNano := tb.LastToken.UnixNano()
+
+	binary.LittleEndian.PutUint64(buffer[24:32], uint64(unixNano))
+	return buffer
+}
+
+func ReadTBFromFile(filepath string) (*TokenBucket, error) {
+	tb := new(TokenBucket)
+	f, _ := os.OpenFile(filepath, os.O_RDONLY, 0644)
+	defer f.Close()
+
+	stat, _ := f.Stat()
+
+	data := make([]byte, stat.Size())
+	f.Read(data)
+
+	tb.Capacity = binary.BigEndian.Uint64(data[0:8])
+	tb.Rate = binary.BigEndian.Uint64(data[8:16])
+	tb.Tokens = binary.BigEndian.Uint64(data[16:24])
+	tb.LastToken = time.Unix(0, int64(binary.LittleEndian.Uint64(data[24:32])))
+
+	return tb, nil
+}
+
 func (tb *TokenBucket) Take() bool {
-	tb.addToken()
+	tb.AddToken()
 
 	if tb.Tokens > 0 {
 		tb.Tokens--
@@ -45,36 +91,6 @@ func (tb *TokenBucket) Take() bool {
 
 	return false
 }
-
-// func (tb *TokenBucket) WriteTBToFile(filepath string) error {
-// 	file, err := os.Open(filepath)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer file.Close()
-
-// 	if err := binary.Write(file, binary.LittleEndian, tb); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
-
-// func ReadTBFromFile(filepath string) (*TokenBucket, error) {
-// 	file, err := os.Open(filepath)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer file.Close()
-
-// 	var tb TokenBucket
-
-// 	if err := binary.Read(file, binary.LittleEndian, &tb); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &tb, nil
-// }
 
 /* Ucitava TokenBucketOptions iz config JSON fajla */
 func (tb *TokenBucket) LoadJson() {
@@ -89,16 +105,3 @@ func (tb *TokenBucket) WriteJson() {
 
 	os.WriteFile(TOKENBUCKET_CONFIG_FILE_PATH, jsonData, 0644)
 }
-
-// func main() {
-// 	tb := LoadTokenBucket()
-
-// 	for i := 0; i < 15; i++ {
-// 		if tb.Take() {
-// 			fmt.Println("Performing action ", i+1)
-// 		} else {
-// 			fmt.Println("Rate limit exceeded. Waiting...")
-// 			time.Sleep(time.Second)
-// 		}
-// 	}
-// }
