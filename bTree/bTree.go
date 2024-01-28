@@ -1,6 +1,7 @@
 package btree
 
 import (
+	"main/config"
 	"main/record"
 )
 
@@ -34,10 +35,12 @@ func NewBTreeNode(isLeaf bool) *BTreeNode {
 }
 
 // for creating a new btree
-func NewBTree(m int) *BTree {
+func NewBTree() *BTree {
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 	return &BTree{
 		root: NewBTreeNode(true), //root is leaf when we first create bTree
-		m:    m,                  //choosing the num of keys and pointers to the children in a node
+		m:    cfg.M,              //choosing the num of keys and pointers to the children in a node
 	}
 }
 
@@ -76,9 +79,7 @@ func (btree *BTree) searchForInsertion(node *BTreeNode, key string, value record
 // insert a key-value pair into the B-tree
 func (btree *BTree) Insert(key string, value record.Record) {
 	//start the insertion from the root if the key doesn't exist in the B-tree
-	if !btree.SearchForInsertion(key, value) {
-		btree.insert(nil, btree.root, 0, key, value)
-	}
+	btree.insert(nil, btree.root, 0, key, value)
 }
 
 // recursive function to insert a key-value pair into a B-tree node

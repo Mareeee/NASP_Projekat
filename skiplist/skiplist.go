@@ -102,14 +102,14 @@ func (sl *SkipList) GetRecords() []record.Record {
 	return elements
 }
 
-/* Ucitava WalOptions iz config JSON fajla */
+/* Ucitava SkipOptions iz config JSON fajla */
 func (o *SkipListOptions) LoadJson() {
 	jsonData, _ := os.ReadFile(SKIPLIST_CONFIG_FILE_PATH)
 
 	json.Unmarshal(jsonData, &o)
 }
 
-/* Upisuje WalOptions u config JSON fajl */
+/* Upisuje SkipOptions u config JSON fajl */
 func (o *SkipListOptions) WriteJson() {
 	jsonData, _ := json.MarshalIndent(o, "", "  ")
 
