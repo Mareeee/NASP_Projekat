@@ -1,16 +1,13 @@
 package hll
 
 import (
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
+	"main/config"
 	"math"
 	"math/bits"
 	"os"
-)
-
-const (
-	HLL_MIN_PRECISION = 4
-	HLL_MAX_PRECISION = 16
 )
 
 func firstKbits(value, k uint64) uint64 {
@@ -89,7 +86,7 @@ func (hll *HLL) toBytes() []byte {
 func (hll *HLL) WriteToBinFile() error {
 	data := hll.toBytes()
 
-	f, err := os.OpenFile(HLL_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(config.HLL_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -100,7 +97,7 @@ func (hll *HLL) WriteToBinFile() error {
 }
 
 func (hll *HLL) LoadHLL() error {
-	f, err := os.OpenFile(HLL_FILE_PATH, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(config.HLL_FILE_PATH, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -133,4 +130,12 @@ func (hll *HLL) LoadHLL() error {
 	}
 
 	return nil
+}
+
+func Hash(data []byte) uint64 {
+	hash := md5.Sum(data)
+	// Convert the first 8 bytes of the hash to a uint64 in big-endian order
+	hashUint := binary.BigEndian.Uint64(hash[:8])
+
+	return hashUint
 }

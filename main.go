@@ -1,7 +1,5 @@
 package main
 
-import "main/lsm"
-
 // tBucket "main/tokenBucket"
 
 func main() {
@@ -17,5 +15,5 @@ func main() {
 	// }
 
 	// sstable.NewSSTable(valueSlice, 1)
-	lsm.SizeTiered()
+	// lsm.SizeTiered()
 }
