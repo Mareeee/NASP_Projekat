@@ -40,20 +40,20 @@ type SummaryEntry struct {
 	offset   int64 //  offset s kog citamo iz indexa
 }
 
-func NewSSTable(allRecords []record.Record) {
+func NewSSTable(allRecords []record.Record, level int) {
 	sst := new(SSTable)
 
 	sst.options.LoadJson()
 	sst.options.NumberOfSSTables++
 
-	sst.writeDataIndexSummary(allRecords)
+	sst.writeDataIndexSummary(allRecords, level)
 	sst.createFilter(allRecords)
 	sst.createMetaData(allRecords)
 
 	sst.options.WriteJson()
 }
 
-func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
+func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 	count := 0
 	offset := 0
 
@@ -61,7 +61,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
 
 	for _, record := range allRecords {
 		// ovde se pravi data, upisujem sve rekorde
-		s.WriteRecord(record, DATA_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db")
+		s.WriteRecord(record, DATA_FILE_PATH+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.options.NumberOfSSTables)+".db")
 
 		if count%s.options.IndexInterval == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})

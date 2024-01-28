@@ -2,7 +2,7 @@ package sstable
 
 const (
 	SSTABLE_CONFIG_FILE_PATH = "config/sstable.json"
-	DATA_FILE_PATH           = "data/sstable/sstable_data_"
+	DATA_FILE_PATH           = "data/sstable/"
 	INDEX_FILE_PATH          = "data/sstable/sstable_index_"
 	SUMMARY_FILE_PATH        = "data/sstable/sstable_summary_"
 	FILTER_FILE_PATH         = "data/sstable/sstable_filter_"
