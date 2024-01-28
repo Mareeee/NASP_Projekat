@@ -2,6 +2,7 @@ package cms
 
 import (
 	"encoding/binary"
+	"main/config"
 	"os"
 	"sort"
 )
@@ -78,7 +79,7 @@ func (cms *CountMinSketch) toBytes() []byte {
 func (cms *CountMinSketch) WriteToBinFile() error {
 	data := cms.toBytes()
 
-	f, err := os.OpenFile(CMS_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(config.CMS_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func (cms *CountMinSketch) WriteToBinFile() error {
 }
 
 func (cms *CountMinSketch) LoadCMS() error {
-	f, err := os.OpenFile(CMS_FILE_PATH, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(config.CMS_FILE_PATH, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
 	}

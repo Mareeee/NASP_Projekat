@@ -2,24 +2,22 @@ package wal
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"main/config"
 	"main/record"
 	"os"
 	"strconv"
 )
 
 type Wal struct {
-	NumberOfSegments           int `json:"NumberOfSegments"`
-	LowWaterMark               int `json:"LowWaterMark"`
-	SegmentSize                int `json:"SegmentSize"`
-	LastSegmentNumberOfRecords int `json:"LastSegmentNumberOfRecords"`
+	config config.Config
 }
 
 func LoadWal() *Wal {
 	w := new(Wal)
-	w.LoadJson()
+	config.LoadConfig(&w.config)
+
 	return w
 }
 
@@ -27,24 +25,24 @@ func LoadWal() *Wal {
 func (w *Wal) AddRecord(key string, value []byte) {
 	record := record.NewRecord(key, value)
 
-	if w.LastSegmentNumberOfRecords == w.SegmentSize {
-		w.NumberOfSegments++
-		w.LastSegmentNumberOfRecords = 0
+	if w.config.LastSegmentNumberOfRecords == w.config.SegmentSize {
+		w.config.NumberOfSegments++
+		w.config.LastSegmentNumberOfRecords = 0
 	}
 
 	w.AddRecordToSegment(*record)
 }
 
 func (w *Wal) AddRecordToSegment(record record.Record) {
-	w.LastSegmentNumberOfRecords++
+	w.config.LastSegmentNumberOfRecords++
 	w.WriteRecord(record)
-	w.WriteJson()
+	w.config.WriteConfig()
 }
 
 func (w Wal) WriteRecord(record record.Record) error {
 	recordBytes := record.ToBytes()
 
-	f, err := os.OpenFile(getPath(w.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(getPath(w.config.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return err
 	}
@@ -58,9 +56,9 @@ func (w Wal) WriteRecord(record record.Record) error {
 func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record
 
-	w.LoadJson()
+	config.LoadConfig(&w.config)
 
-	for i := 1; i <= w.NumberOfSegments; i++ {
+	for i := 1; i <= w.config.NumberOfSegments; i++ {
 		loadedRecords, err := w.LoadRecordsFromSegment(getPath(i))
 		if err != nil {
 			return nil, err
@@ -119,31 +117,31 @@ func (w *Wal) LoadRecordsFromSegment(fileName string) ([]*record.Record, error) 
 
 /* Brise segmente na osnovu lowWaterMark iz WalOptions */
 func (w *Wal) DeleteSegments() {
-	for i := 1; i <= w.LowWaterMark; i++ {
-		w.NumberOfSegments--
+	for i := 1; i <= w.config.LowWaterMark; i++ {
+		w.config.NumberOfSegments--
 		os.Remove(getPath(i)) // brise fajl
 	}
 
-	for i := 1; i <= w.NumberOfSegments; i++ {
-		os.Rename(getPath(w.LowWaterMark+i), getPath(i)) // preimenuje fajl
+	for i := 1; i <= w.config.NumberOfSegments; i++ {
+		os.Rename(getPath(w.config.LowWaterMark+i), getPath(i)) // preimenuje fajl
 	}
 
-	if w.NumberOfSegments == 0 { // ako su obrisani svi segmenti
-		w.NumberOfSegments = 1           // uvek mora postojati jedan u koji se upisuje
-		w.LastSegmentNumberOfRecords = 0 // prazan je
+	if w.config.NumberOfSegments == 0 { // ako su obrisani svi segmenti
+		w.config.NumberOfSegments = 1           // uvek mora postojati jedan u koji se upisuje
+		w.config.LastSegmentNumberOfRecords = 0 // prazan je
 	}
 
-	w.WriteJson()
+	w.config.WriteConfig()
 }
 
 func (w *Wal) SetLowWaterMark(newLowWaterMark int) {
-	w.LowWaterMark = newLowWaterMark
-	w.WriteJson()
+	w.config.LowWaterMark = newLowWaterMark
+	w.config.WriteConfig()
 }
 
 /* Na osnovu rednog broja segmenta kreira filePath za segment */
 func getPath(numberOfSegment int) string {
-	path := SEGMENT_FILE_PATH
+	path := config.SEGMENT_FILE_PATH
 
 	stringNumberOfSegment := strconv.Itoa(numberOfSegment)
 	lenString := len(stringNumberOfSegment)
@@ -161,24 +159,4 @@ func getPath(numberOfSegment int) string {
 	}
 
 	return path
-}
-
-/* Ucitava WalOptions iz config JSON fajla */
-func (w *Wal) LoadJson() error {
-	jsonData, err := os.ReadFile(WAL_CONFIG_FILE_PATH)
-	if err != nil {
-		return err
-	}
-	json.Unmarshal(jsonData, &w)
-	return nil
-}
-
-/* Upisuje WalOptions u config JSON fajl */
-func (w *Wal) WriteJson() error {
-	jsonData, err := json.MarshalIndent(w, "", "  ")
-	if err != nil {
-		return err
-	}
-	os.WriteFile(WAL_CONFIG_FILE_PATH, jsonData, 0644)
-	return nil
 }

@@ -2,6 +2,7 @@ package lsm
 
 import (
 	"fmt"
+	"main/config"
 	"main/record"
 	"main/sstable"
 	"os"
@@ -10,16 +11,15 @@ import (
 )
 
 func SizeTiered() {
-	// ove parametre cemo ucitavati iz globalnog config fajla koji cemo naknadno napraviti
-	numberOfLevels := 2
-	maxTabels := 2
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 
 	var currentLevelSSTables []string
 	// prolazak kroz nivoe sstabela
-	for level := 1; level <= numberOfLevels; level++ {
+	for level := 1; level <= cfg.NumberOfLevels; level++ {
 		currentLevelSSTables = findSSTable(strconv.Itoa(level))
 		// radimo kompakciju pod uslovom da je broj sstabela na nivou dostigao limit
-		if len(currentLevelSSTables) >= maxTabels && len(currentLevelSSTables)%2 == 0 {
+		if len(currentLevelSSTables) >= cfg.MaxTabels && len(currentLevelSSTables)%2 == 0 {
 			for i := 0; i < len(currentLevelSSTables); i += 2 {
 				records1 := currentLevelSSTables[i]
 				records2 := currentLevelSSTables[i+1]
@@ -48,7 +48,7 @@ func deleteOldTables(records1, records2 string, level int) {
 func findSSTable(level string) []string {
 	var currentLevelSSTables []string
 
-	files, err := os.ReadDir(SSTABLE_DIRECTORY)
+	files, err := os.ReadDir(config.SSTABLE_DIRECTORY)
 	if err != nil {
 		fmt.Println("Error reading directory:", err)
 		return nil
