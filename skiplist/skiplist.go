@@ -9,17 +9,19 @@ import (
 )
 
 type Node struct {
-	record record.Record
+	Record record.Record
 	next   []*Node
 }
 
-func (node Node) GetValue() []byte {
-	return node.record.Value
+func newNode(record record.Record, level int) *Node {
+	return &Node{
+		Record: record,
+		next:   make([]*Node, level+1),
+	}
 }
 
-func (node *Node) newNode(value, level int) {
-	node.record.Value = value
-	node.next = make([]*Node, level+1) // next u i-tom redu
+type SkipListOptions struct {
+	MaxHeight int `json:"MaxHeight"`
 }
 
 type SkipList struct {
@@ -41,12 +43,12 @@ func NewSkipList() *SkipList {
 func (sl *SkipList) Search(key string) (*Node, bool) {
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < key {
+		for current.next[i] != nil && current.next[i].Record.Key < key {
 			current = current.next[i]
 		}
 	}
 
-	return current.next[0], current.next[0] != nil && current.next[0].record.Key == key
+	return current.next[0], current.next[0] != nil && current.next[0].Record.Key == key
 }
 
 func (sl *SkipList) Insert(record record.Record) {
@@ -54,7 +56,7 @@ func (sl *SkipList) Insert(record record.Record) {
 	new := newNode(record, level)
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < record.Key {
+		for current.next[i] != nil && current.next[i].Record.Key < record.Key {
 			current = current.next[i]
 		}
 		new.next[i] = current.next[i]
@@ -69,7 +71,7 @@ func (sl *SkipList) Delete(key string) (bool, error) {
 	}
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < key {
+		for current.next[i] != nil && current.next[i].Record.Key < key {
 			current = current.next[i]
 		}
 		current.next[i] = nodeToDel.next[i]
@@ -85,6 +87,19 @@ func (sl *SkipList) roll() int {
 		}
 	}
 	return level
+}
+
+func (sl *SkipList) GetRecords() []record.Record {
+	var elements []record.Record
+
+	current := sl.head.next[0]
+
+	for current != nil {
+		elements = append(elements, current.Record)
+		current = current.next[0]
+	}
+
+	return elements
 }
 
 /* Ucitava WalOptions iz config JSON fajla */
