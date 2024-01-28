@@ -25,11 +25,14 @@ func main() {
 
 	// sstable.NewSSTable(valueSlice)
 
-	// record, _ := sstable.Search("Mare")
-	// fmt.Println(string(record.Value))
-
-	records, _ := sstable.PrefixScan("da")
-	for _, record := range records {
-		fmt.Println(record.Key)
+	record, err := sstable.Search("a")
+	if err != nil {
+		fmt.Println(err)
 	}
+	fmt.Println(string(record.Value))
+
+	// records, _ := sstable.PrefixScan("da")
+	// for _, record := range records {
+	// 	fmt.Println(record.Key)
+	// }
 }

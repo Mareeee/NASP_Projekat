@@ -30,7 +30,6 @@ func (w *Wal) AddRecord(key string, value []byte) {
 	if w.LastSegmentNumberOfRecords == w.SegmentSize {
 		w.NumberOfSegments++
 		w.LastSegmentNumberOfRecords = 0
-		w.WriteJson()
 	}
 
 	w.AddRecordToSegment(*record)
