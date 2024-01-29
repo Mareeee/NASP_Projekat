@@ -5,45 +5,62 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"main/record"
 	"os"
 	"strconv"
+	"main/record"
 )
 
 type Wal struct {
-	NumberOfSegments           int `json:"NumberOfSegments"`
-	LowWaterMark               int `json:"LowWaterMark"`
-	SegmentSize                int `json:"SegmentSize"`
-	LastSegmentNumberOfRecords int `json:"LastSegmentNumberOfRecords"`
+	NumberOfSegments int `json:"NumberOfSegments"`
+	LowWaterMark     int `json:"LowWaterMark"`
+	SegmentSize      int `json:"SegmentSize"`
+	LastSegmentSize  int `json:"LastSegmentNumberOfRecords"`
 }
 
-func LoadWal() *Wal {
+func LoadWal() (*Wal, error) {
 	w := new(Wal)
-	w.LoadJson()
-	return w
+	err := w.LoadJson()
+	if err != nil {
+		return nil, err
+	}
+	return w, nil
 }
 
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
-func (w *Wal) AddRecord(key string, value []byte) {
+func (w *Wal) AddRecord(key string, value []byte) error {
 	record := record.NewRecord(key, value)
-
-	if w.LastSegmentNumberOfRecords == w.SegmentSize {
-		w.NumberOfSegments++
-		w.LastSegmentNumberOfRecords = 0
-	}
-
-	w.AddRecordToSegment(*record)
-}
-
-func (w *Wal) AddRecordToSegment(record record.Record) {
-	w.LastSegmentNumberOfRecords++
-	w.WriteRecord(record)
-	w.WriteJson()
-}
-
-func (w Wal) WriteRecord(record record.Record) error {
 	recordBytes := record.ToBytes()
 
+	remainingSpaceInLastSegment := w.SegmentSize - w.LastSegmentSize
+
+	if remainingSpaceInLastSegment < len(recordBytes) {
+		err := w.AddRecordToSegment(recordBytes[:remainingSpaceInLastSegment])
+		if err != nil {
+			return err
+		}
+		w.NumberOfSegments++
+		w.LastSegmentSize = 0
+		err = w.AddRecordToSegment(recordBytes[remainingSpaceInLastSegment:])
+		if err != nil {
+			return err
+		}
+	} else {
+		err := w.AddRecordToSegment(recordBytes)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Wal) AddRecordToSegment(recordBytes []byte) error {
+	w.LastSegmentSize += len(recordBytes)
+	w.WriteToLastSegment(recordBytes)
+	err := w.WriteJson()
+	return err
+}
+
+func (w Wal) WriteToLastSegment(recordBytes []byte) error {
 	f, err := os.OpenFile(getPath(w.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return err
@@ -57,42 +74,22 @@ func (w Wal) WriteRecord(record record.Record) error {
 /* Ucitavanje svih zapisa odjednom */
 func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record
+	var data []byte
 
-	w.LoadJson()
+	err := w.LoadJson()
+	if err != nil {
+		return nil, err
+	}
 
 	for i := 1; i <= w.NumberOfSegments; i++ {
-		loadedRecords, err := w.LoadRecordsFromSegment(getPath(i))
+		loadedData, err := w.LoadDataFromSegment(getPath(i))
 		if err != nil {
 			return nil, err
 		}
-		records = append(records, loadedRecords...)
+		data = append(data, loadedData...) // ucitavam sve segmente u veliki niz bajtova, ovako radim da bih lakse resio prelamanje rekorda
 	}
 
-	return records, nil
-}
-
-/* Ucitava sve zapise segmenta u memoriju */
-func (w *Wal) LoadRecordsFromSegment(fileName string) ([]*record.Record, error) {
-	var records []*record.Record
-
-	f, err := os.OpenFile(fileName, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	data := make([]byte, stat.Size())
-	_, err = f.Read(data)
-	if err != nil {
-		return nil, err
-	}
-
-	for len(data) != 0 { // ucitavaj iz fajla sve dok ima nesto
+	for len(data) != 0 {
 		crc32 := binary.BigEndian.Uint32(data[0:4])
 		timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
 		tombstone := false
@@ -117,8 +114,30 @@ func (w *Wal) LoadRecordsFromSegment(fileName string) ([]*record.Record, error) 
 	return records, nil
 }
 
+/* Ucitava sve zapise segmenta u memoriju */
+func (w *Wal) LoadDataFromSegment(fileName string) ([]byte, error) {
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, stat.Size())
+	_, err = f.Read(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 /* Brise segmente na osnovu lowWaterMark iz WalOptions */
-func (w *Wal) DeleteSegments() {
+func (w *Wal) DeleteSegments() error {
 	for i := 1; i <= w.LowWaterMark; i++ {
 		w.NumberOfSegments--
 		os.Remove(getPath(i)) // brise fajl
@@ -129,16 +148,18 @@ func (w *Wal) DeleteSegments() {
 	}
 
 	if w.NumberOfSegments == 0 { // ako su obrisani svi segmenti
-		w.NumberOfSegments = 1           // uvek mora postojati jedan u koji se upisuje
-		w.LastSegmentNumberOfRecords = 0 // prazan je
+		w.NumberOfSegments = 1 // uvek mora postojati jedan u koji se upisuje
+		w.LastSegmentSize = 0  // prazan je
 	}
 
-	w.WriteJson()
+	err := w.WriteJson()
+	return err
 }
 
-func (w *Wal) SetLowWaterMark(newLowWaterMark int) {
+func (w *Wal) ChangeLowWaterMark(newLowWaterMark int) error {
 	w.LowWaterMark = newLowWaterMark
-	w.WriteJson()
+	err := w.WriteJson()
+	return err
 }
 
 /* Na osnovu rednog broja segmenta kreira filePath za segment */
