@@ -67,7 +67,7 @@ func LoadSSTable(fileNumber int) (*SSTable, error) {
 	return sst, nil
 }
 
-func NewSSTable(allRecords []record.Record) (*SSTable, error) {
+func NewSSTable(allRecords []record.Record, level int) (*SSTable, error) {
 	sst := new(SSTable)
 	cfg := new(config.Config)
 	err := config.LoadConfig(cfg)
