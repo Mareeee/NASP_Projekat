@@ -138,7 +138,7 @@ func PrintTree(node *Node, indent string) {
 
 func (mt *MerkleTree) WriteToBinFile(filePath string) {
 	serializedTree := SerializeMerkleTree(mt.Root)
-	os.WriteFile("data/merkle/"+filePath+".bin", []byte(serializedTree), 0644)
+	os.WriteFile(filePath, []byte(serializedTree), 0644)
 }
 
 func ReadFromBinFile(filePath string) string {
