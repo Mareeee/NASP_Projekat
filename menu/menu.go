@@ -29,12 +29,15 @@ func (m *Menu) Start() {
 
 		switch option {
 		case "1":
-			//engine.Put()
+			key, value := engine.UserInput(true)
+			engine.Put(key, value)
 		case "2":
-			record := engine.Get("Mare")
+			key, _ := engine.UserInput(false)
+			record := engine.Get(key)
 			fmt.Println(record)
 		case "3":
-			engine.Delete("Mare")
+			key, _ := engine.UserInput(false)
+			engine.Delete(key)
 		case "X":
 			os.Exit(0)
 		default:

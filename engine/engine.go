@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"main/cache"
@@ -10,14 +11,13 @@ import (
 	"main/sstable"
 	tokenbucket "main/tokenBucket"
 	"main/wal"
+	"os"
 )
 
 type Engine struct {
 	config                config.Config
 	cache                 cache.Cache
-	sstable               sstable.SSTable
 	wal                   wal.Wal
-	record                record.Record
 	tbucket               tokenbucket.TokenBucket
 	all_memtables         []memtable.Memtable
 	active_memtable_index int
@@ -40,15 +40,15 @@ func (e *Engine) Engine() {
 
 	e.recover()
 
-	for i := 0; i < len(e.all_memtables); i++ {
-		e.all_memtables[i].PrintMemtableRecords()
-	}
+	// for i := 0; i < len(e.all_memtables); i++ {
+	// 	e.all_memtables[i].PrintMemtableRecords()
+	// }
 }
 
 func (e *Engine) Put(key string, value []byte) error {
 	err := e.wal.AddRecord(key, value, false)
 	if err != nil {
-		return errors.New("Failed wal insert")
+		return errors.New("failed wal insert")
 	}
 	recordToAdd := record.NewRecord(key, value, false)
 	e.AddRecordToMemtable(*recordToAdd)
@@ -116,15 +116,17 @@ func (e *Engine) Delete(key string) {
 	e.cache.Set(key, *record)
 }
 
-func UserInput(inputValueAlso bool) (string, []byte) {
-	var key string
-	var value string
+func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
 
 	fmt.Print("Input key: ")
-	fmt.Scanln(key)
-	if inputValueAlso == true {
+	keyScanner := bufio.NewScanner(os.Stdin)
+	keyScanner.Scan()
+	key := keyScanner.Text()
+	if inputValueAlso {
 		fmt.Print("Input value: ")
-		fmt.Scanln(value)
+		valueScanner := bufio.NewScanner(os.Stdin)
+		valueScanner.Scan()
+		value := valueScanner.Text()
 		return key, []byte(value)
 	} else {
 		return key, nil
