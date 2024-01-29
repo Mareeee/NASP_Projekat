@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"errors"
 	"main/cache"
 	"main/config"
 	"main/memtable"
+	"main/record"
 	"main/sstable"
 	tokenbucket "main/tokenBucket"
 	"main/wal"
@@ -40,7 +42,15 @@ func (e *Engine) Engine() {
 	}
 }
 
-func (e *Engine) Put() {
+func (e *Engine) Put(key string, value []byte) error {
+	err := e.wal.AddRecord(key, value)
+	if err != nil {
+		return errors.New("Failed wal insert")
+	}
+	recordToAdd := record.NewRecord(key, value)
+	e.AddRecordToMemtable(*recordToAdd)
+	e.cache.Set(key, *recordToAdd)
+	return nil
 }
 
 func (e *Engine) Get() {
@@ -56,18 +66,33 @@ func (e *Engine) recover() error {
 	}
 
 	for i := len(all_records) - 1; i >= 0; i-- {
-		successful := e.all_memtables[e.active_memtable_index].Insert(*all_records[i])
-		if !successful {
-			// poveca pokazivac na aktivnu memtablelu i podeli po modulu da bi mogli da se pozicioniramo u listi
-			e.active_memtable_index = (e.active_memtable_index + 1) % e.config.NumberOfMemtables
+		e.AddRecordToMemtable(*all_records[i])
+		// successful := e.all_memtables[e.active_memtable_index].Insert(*all_records[i])
+		// if !successful {
+		// 	// poveca pokazivac na aktivnu memtablelu i podeli po modulu da bi mogli da se pozicioniramo u listi
+		// 	e.active_memtable_index = (e.active_memtable_index + 1) % e.config.NumberOfMemtables
 
-			if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
-				all_records := e.all_memtables[e.active_memtable_index].Flush()
-				sstable.NewSSTable(all_records, 1)
-				e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
-			}
-		}
+		// 	if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
+		// 		all_records := e.all_memtables[e.active_memtable_index].Flush()
+		// 		sstable.NewSSTable(all_records, 1)
+		// 		e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
+		// 	}
+		// }
 	}
 
 	return nil
+}
+
+func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
+	successful := e.all_memtables[e.active_memtable_index].Insert(recordToAdd)
+	if !successful {
+		// poveca pokazivac na aktivnu memtablelu i podeli po modulu da bi mogli da se pozicioniramo u listi
+		e.active_memtable_index = (e.active_memtable_index + 1) % e.config.NumberOfMemtables
+
+		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
+			all_records := e.all_memtables[e.active_memtable_index].Flush()
+			sstable.NewSSTable(all_records, 1)
+			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
+		}
+	}
 }
