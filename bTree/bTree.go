@@ -45,6 +45,37 @@ func NewBTree() *BTree {
 	}
 }
 
+// search for a value with a given key in the B-tree
+func (btree *BTree) SearchForValue(key string) *record.Record {
+	return btree.searchForValue(btree.root, key)
+}
+
+// recursive function to search for a value with a given key in a B-tree node
+func (btree *BTree) searchForValue(node *BTreeNode, key string) *record.Record {
+	if node == nil {
+		return nil
+	}
+
+	// find the appropriate position to search for the key
+	i := 0
+	for i < len(node.pairs) && key > node.pairs[i].key {
+		i++
+	}
+
+	//if the key is found
+	if i < len(node.pairs) && key == node.pairs[i].key {
+		return &node.pairs[i].value
+	}
+
+	//if the node is a leaf, the key is not in the tree
+	if node.isLeaf {
+		return nil
+	}
+
+	//recursively search in the appropriate child
+	return btree.searchForValue(node.children[i], key)
+}
+
 // search for a key in the B-tree
 func (btree *BTree) SearchForInsertion(key string, value record.Record) bool {
 	value.Timestamp = time.Now().Unix()
