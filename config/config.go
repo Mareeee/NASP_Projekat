@@ -31,6 +31,9 @@ const (
 	CONFIG_SUMMARY_INTERVAL     = 2
 	CONFIG_CAPACITY             = 10
 	CONFIG_RATE                 = 2
+	CONFIG_MAX_SIZE             = 9
+	CONFIG_MEMTABLE_STRUCTURE   = "skiplist"
+	CONFIG_NUMBER_OF_MEMTABLES  = 2
 )
 
 type Config struct {
@@ -51,8 +54,12 @@ type Config struct {
 	// tokenBucket
 	Capacity uint64 `json:"Capacity"`
 	Rate     uint64 `json:"Rate"`
-	//bTree
+	// bTree
 	M int `json:"M"`
+	// memtable
+	MaxSize           int    `json:"MaxSize"`
+	MemtableStructure string `json:"MemtableStructure"`
+	NumberOfMemtables int    `json:"NumberOfMemtables"`
 }
 
 func (cfg *Config) checkValidity() {
@@ -104,6 +111,18 @@ func (cfg *Config) checkValidity() {
 	if cfg.Rate < uint64(0) {
 		cfg.Rate = CONFIG_RATE
 	}
+
+	if cfg.MaxSize < 0 {
+		cfg.MaxSize = CONFIG_MAX_SIZE
+	}
+
+	if cfg.MemtableStructure != "skiplist" && cfg.MemtableStructure != "btree" {
+		cfg.MemtableStructure = CONFIG_MEMTABLE_STRUCTURE
+	}
+
+	if cfg.NumberOfMemtables < 0 {
+		cfg.NumberOfMemtables = CONFIG_NUMBER_OF_MEMTABLES
+	}
 }
 
 func LoadConfig(cfg *Config) error {
@@ -121,6 +140,9 @@ func LoadConfig(cfg *Config) error {
 		cfg.SummaryInterval = CONFIG_SUMMARY_INTERVAL
 		cfg.Capacity = CONFIG_CAPACITY
 		cfg.Rate = CONFIG_RATE
+		cfg.MaxSize = CONFIG_MAX_SIZE
+		cfg.MemtableStructure = CONFIG_MEMTABLE_STRUCTURE
+		cfg.NumberOfMemtables = CONFIG_NUMBER_OF_MEMTABLES
 	} else {
 		err = json.Unmarshal(jsonFile, &cfg)
 		if err != nil {

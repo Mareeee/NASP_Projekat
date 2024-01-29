@@ -3,6 +3,7 @@ package btree
 import (
 	"main/config"
 	"main/record"
+	"time"
 )
 
 // used for every key value pair in a node
@@ -46,6 +47,7 @@ func NewBTree() *BTree {
 
 // search for a key in the B-tree
 func (btree *BTree) SearchForInsertion(key string, value record.Record) bool {
+	value.Timestamp = time.Now().Unix()
 	return btree.searchForInsertion(btree.root, key, value)
 }
 

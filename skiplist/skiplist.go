@@ -1,11 +1,10 @@
 package skiplist
 
 import (
-	"encoding/json"
 	"errors"
+	"main/config"
 	"main/record"
 	"math/rand"
-	"os"
 )
 
 type Node struct {
@@ -20,21 +19,17 @@ func newNode(record record.Record, level int) *Node {
 	}
 }
 
-type SkipListOptions struct {
-	MaxHeight int `json:"MaxHeight"`
-}
-
 type SkipList struct {
-	options SkipListOptions
-	head    *Node
-	level   int // trenutni broj nivoa
+	config config.Config
+	head   *Node
+	level  int // trenutni broj nivoa
 }
 
 func NewSkipList() *SkipList {
 	sl := new(SkipList)
-	sl.options.LoadJson()
+	config.LoadConfig(&sl.config)
 	record := new(record.Record)
-	sl.head = newNode(*record, sl.options.MaxHeight)
+	sl.head = newNode(*record, sl.config.MaxHeight)
 	sl.level = 1
 
 	return sl
@@ -82,7 +77,7 @@ func (sl *SkipList) Delete(key string) (bool, error) {
 func (sl *SkipList) roll() int {
 	level := 0
 	for ; rand.Int31n(2) == 1; level++ {
-		if level >= sl.options.MaxHeight {
+		if level >= sl.config.MaxHeight {
 			return level
 		}
 	}
@@ -100,18 +95,4 @@ func (sl *SkipList) GetRecords() []record.Record {
 	}
 
 	return elements
-}
-
-/* Ucitava SkipOptions iz config JSON fajla */
-func (o *SkipListOptions) LoadJson() {
-	jsonData, _ := os.ReadFile(SKIPLIST_CONFIG_FILE_PATH)
-
-	json.Unmarshal(jsonData, &o)
-}
-
-/* Upisuje SkipOptions u config JSON fajl */
-func (o *SkipListOptions) WriteJson() {
-	jsonData, _ := json.MarshalIndent(o, "", "  ")
-
-	os.WriteFile(SKIPLIST_CONFIG_FILE_PATH, jsonData, 0644)
 }

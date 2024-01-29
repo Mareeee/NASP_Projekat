@@ -1,4 +1,0 @@
-{
-	"memtable_size": 10,
-	"memtable_structure": "skiplist"
-}

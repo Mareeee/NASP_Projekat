@@ -1,4 +1,0 @@
-{
-	"MaxSize": 9,
-	"MemtableStructure": "skiplist"
-}
