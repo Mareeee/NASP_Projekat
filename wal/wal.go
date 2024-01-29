@@ -2,24 +2,21 @@ package wal
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"main/config"
+	"main/record"
 	"os"
 	"strconv"
-	"main/record"
 )
 
 type Wal struct {
-	NumberOfSegments int `json:"NumberOfSegments"`
-	LowWaterMark     int `json:"LowWaterMark"`
-	SegmentSize      int `json:"SegmentSize"`
-	LastSegmentSize  int `json:"LastSegmentNumberOfRecords"`
+	config config.Config
 }
 
 func LoadWal() (*Wal, error) {
 	w := new(Wal)
-	err := w.LoadJson()
+	err := config.LoadConfig(&w.config)
 	if err != nil {
 		return nil, err
 	}
@@ -31,15 +28,15 @@ func (w *Wal) AddRecord(key string, value []byte) error {
 	record := record.NewRecord(key, value)
 	recordBytes := record.ToBytes()
 
-	remainingSpaceInLastSegment := w.SegmentSize - w.LastSegmentSize
+	remainingSpaceInLastSegment := w.config.SegmentSize - w.config.LastSegmentSize
 
 	if remainingSpaceInLastSegment < len(recordBytes) {
 		err := w.AddRecordToSegment(recordBytes[:remainingSpaceInLastSegment])
 		if err != nil {
 			return err
 		}
-		w.NumberOfSegments++
-		w.LastSegmentSize = 0
+		w.config.NumberOfSegments++
+		w.config.LastSegmentSize = 0
 		err = w.AddRecordToSegment(recordBytes[remainingSpaceInLastSegment:])
 		if err != nil {
 			return err
@@ -54,14 +51,14 @@ func (w *Wal) AddRecord(key string, value []byte) error {
 }
 
 func (w *Wal) AddRecordToSegment(recordBytes []byte) error {
-	w.LastSegmentSize += len(recordBytes)
+	w.config.LastSegmentSize += len(recordBytes)
 	w.WriteToLastSegment(recordBytes)
-	err := w.WriteJson()
+	err := w.config.WriteConfig()
 	return err
 }
 
 func (w Wal) WriteToLastSegment(recordBytes []byte) error {
-	f, err := os.OpenFile(getPath(w.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(getPath(w.config.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return err
 	}
@@ -76,12 +73,12 @@ func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record
 	var data []byte
 
-	err := w.LoadJson()
+	err := config.LoadConfig(&w.config)
 	if err != nil {
 		return nil, err
 	}
 
-	for i := 1; i <= w.NumberOfSegments; i++ {
+	for i := 1; i <= w.config.NumberOfSegments; i++ {
 		loadedData, err := w.LoadDataFromSegment(getPath(i))
 		if err != nil {
 			return nil, err
@@ -138,33 +135,33 @@ func (w *Wal) LoadDataFromSegment(fileName string) ([]byte, error) {
 
 /* Brise segmente na osnovu lowWaterMark iz WalOptions */
 func (w *Wal) DeleteSegments() error {
-	for i := 1; i <= w.LowWaterMark; i++ {
-		w.NumberOfSegments--
+	for i := 1; i <= w.config.LowWaterMark; i++ {
+		w.config.NumberOfSegments--
 		os.Remove(getPath(i)) // brise fajl
 	}
 
-	for i := 1; i <= w.NumberOfSegments; i++ {
-		os.Rename(getPath(w.LowWaterMark+i), getPath(i)) // preimenuje fajl
+	for i := 1; i <= w.config.NumberOfSegments; i++ {
+		os.Rename(getPath(w.config.LowWaterMark+i), getPath(i)) // preimenuje fajl
 	}
 
-	if w.NumberOfSegments == 0 { // ako su obrisani svi segmenti
-		w.NumberOfSegments = 1 // uvek mora postojati jedan u koji se upisuje
-		w.LastSegmentSize = 0  // prazan je
+	if w.config.NumberOfSegments == 0 { // ako su obrisani svi segmenti
+		w.config.NumberOfSegments = 1 // uvek mora postojati jedan u koji se upisuje
+		w.config.LastSegmentSize = 0  // prazan je
 	}
 
-	err := w.WriteJson()
+	err := w.config.WriteConfig()
 	return err
 }
 
 func (w *Wal) ChangeLowWaterMark(newLowWaterMark int) error {
-	w.LowWaterMark = newLowWaterMark
-	err := w.WriteJson()
+	w.config.LowWaterMark = newLowWaterMark
+	err := w.config.WriteConfig()
 	return err
 }
 
 /* Na osnovu rednog broja segmenta kreira filePath za segment */
 func getPath(numberOfSegment int) string {
-	path := SEGMENT_FILE_PATH
+	path := config.SEGMENT_FILE_PATH
 
 	stringNumberOfSegment := strconv.Itoa(numberOfSegment)
 	lenString := len(stringNumberOfSegment)
@@ -182,24 +179,4 @@ func getPath(numberOfSegment int) string {
 	}
 
 	return path
-}
-
-/* Ucitava WalOptions iz config JSON fajla */
-func (w *Wal) LoadJson() error {
-	jsonData, err := os.ReadFile(WAL_CONFIG_FILE_PATH)
-	if err != nil {
-		return err
-	}
-	json.Unmarshal(jsonData, &w)
-	return nil
-}
-
-/* Upisuje WalOptions u config JSON fajl */
-func (w *Wal) WriteJson() error {
-	jsonData, err := json.MarshalIndent(w, "", "  ")
-	if err != nil {
-		return err
-	}
-	os.WriteFile(WAL_CONFIG_FILE_PATH, jsonData, 0644)
-	return nil
 }

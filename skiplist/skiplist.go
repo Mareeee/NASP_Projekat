@@ -1,38 +1,35 @@
 package skiplist
 
 import (
-	"encoding/json"
 	"errors"
+	"main/config"
 	"main/record"
 	"math/rand"
-	"os"
 )
 
 type Node struct {
-	record record.Record
+	Record record.Record
 	next   []*Node
 }
 
-func (node Node) GetValue() []byte {
-	return node.record.Value
-}
-
-func (node *Node) newNode(value, level int) {
-	node.record.Value = value
-	node.next = make([]*Node, level+1) // next u i-tom redu
+func newNode(record record.Record, level int) *Node {
+	return &Node{
+		Record: record,
+		next:   make([]*Node, level+1),
+	}
 }
 
 type SkipList struct {
-	options SkipListOptions
-	head    *Node
-	level   int // trenutni broj nivoa
+	config config.Config
+	head   *Node
+	level  int // trenutni broj nivoa
 }
 
 func NewSkipList() *SkipList {
 	sl := new(SkipList)
-	sl.options.LoadJson()
+	config.LoadConfig(&sl.config)
 	record := new(record.Record)
-	sl.head = newNode(*record, sl.options.MaxHeight)
+	sl.head = newNode(*record, sl.config.MaxHeight)
 	sl.level = 1
 
 	return sl
@@ -41,12 +38,12 @@ func NewSkipList() *SkipList {
 func (sl *SkipList) Search(key string) (*Node, bool) {
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < key {
+		for current.next[i] != nil && current.next[i].Record.Key < key {
 			current = current.next[i]
 		}
 	}
 
-	return current.next[0], current.next[0] != nil && current.next[0].record.Key == key
+	return current.next[0], current.next[0] != nil && current.next[0].Record.Key == key
 }
 
 func (sl *SkipList) Insert(record record.Record) {
@@ -54,7 +51,7 @@ func (sl *SkipList) Insert(record record.Record) {
 	new := newNode(record, level)
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < record.Key {
+		for current.next[i] != nil && current.next[i].Record.Key < record.Key {
 			current = current.next[i]
 		}
 		new.next[i] = current.next[i]
@@ -69,7 +66,7 @@ func (sl *SkipList) Delete(key string) (bool, error) {
 	}
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.next[i] != nil && current.next[i].record.Key < key {
+		for current.next[i] != nil && current.next[i].Record.Key < key {
 			current = current.next[i]
 		}
 		current.next[i] = nodeToDel.next[i]
@@ -80,23 +77,22 @@ func (sl *SkipList) Delete(key string) (bool, error) {
 func (sl *SkipList) roll() int {
 	level := 0
 	for ; rand.Int31n(2) == 1; level++ {
-		if level >= sl.options.MaxHeight {
+		if level >= sl.config.MaxHeight {
 			return level
 		}
 	}
 	return level
 }
 
-/* Ucitava WalOptions iz config JSON fajla */
-func (o *SkipListOptions) LoadJson() {
-	jsonData, _ := os.ReadFile(SKIPLIST_CONFIG_FILE_PATH)
+func (sl *SkipList) GetRecords() []record.Record {
+	var elements []record.Record
 
-	json.Unmarshal(jsonData, &o)
-}
+	current := sl.head.next[0]
 
-/* Upisuje WalOptions u config JSON fajl */
-func (o *SkipListOptions) WriteJson() {
-	jsonData, _ := json.MarshalIndent(o, "", "  ")
+	for current != nil {
+		elements = append(elements, current.Record)
+		current = current.next[0]
+	}
 
-	os.WriteFile(SKIPLIST_CONFIG_FILE_PATH, jsonData, 0644)
+	return elements
 }

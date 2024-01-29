@@ -3,6 +3,7 @@ package record
 import (
 	"encoding/binary"
 	"hash/crc32"
+	"os"
 	"time"
 )
 
@@ -43,6 +44,51 @@ func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, va
 	}
 }
 
+func LoadRecordsFromFile(fileName string) ([]*Record, error) {
+	var records []*Record
+
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, stat.Size())
+	_, err = f.Read(data)
+	if err != nil {
+		return nil, err
+	}
+
+	for len(data) != 0 { // ucitavaj iz fajla sve dok ima nesto
+		crc32 := binary.BigEndian.Uint32(data[0:4])
+		timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
+		tombstone := false
+		if data[12] == 1 {
+			tombstone = true
+		}
+		keySize := int64(binary.BigEndian.Uint64(data[13:21]))
+		valueSize := int64(binary.BigEndian.Uint64(data[21:29]))
+		key := string(data[29 : 29+keySize])
+		value := data[29+keySize : 29+keySize+valueSize]
+
+		checkCrc32 := CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
+
+		if checkCrc32 == crc32 { // potrebno je pri ucitavanju proveriti da li je doslo do promene zapisa
+			loadedRecord := LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
+			records = append(records, loadedRecord)
+		}
+
+		data = data[29+keySize+valueSize:]
+	}
+
+	return records, nil
+}
+
 func CalculateCRC(timestamp int64, tombstone bool, keySize int64, valueSize int64, key string, value []byte) uint32 {
 	bufferSize := 25 + keySize + valueSize // 25 zato sto su svi pre key i value fiksni, a key i value su promenljive duzine, crc nije uracunat
 	buffer := make([]byte, bufferSize)
@@ -74,4 +120,12 @@ func (r Record) ToBytes() []byte {
 	copy(buffer[29:29+r.KeySize], []byte(r.Key))
 	copy(buffer[29+r.KeySize:bufferSize], r.Value)
 	return buffer
+}
+
+func GetNewerRecord(record1, record2 Record) Record {
+	if record1.Timestamp > record2.Timestamp {
+		return record1
+	} else {
+		return record2
+	}
 }

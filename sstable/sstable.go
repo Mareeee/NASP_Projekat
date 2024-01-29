@@ -2,17 +2,15 @@ package sstable
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"main/bloom-filter"
+	"main/config"
 	"main/record"
 	"os"
 	"strconv"
 )
 
 type SSTableOptions struct {
-	NumberOfSSTables int `json:"NumberOfSSTables"`
-	IndexInterval    int `json:"IndexInterval"`
-	SummaryInterval  int `json:"SummaryInterval"`
+	config config.Config
 }
 
 type SSTable struct {
@@ -40,20 +38,20 @@ type SummaryEntry struct {
 	offset   int64 //  offset s kog citamo iz indexa
 }
 
-func NewSSTable(allRecords []record.Record) {
+func NewSSTable(allRecords []record.Record, level int) {
 	sst := new(SSTable)
 
-	sst.options.LoadJson()
-	sst.options.NumberOfSSTables++
+	config.LoadConfig(&sst.options.config)
+	sst.options.config.NumberOfSSTables++
 
-	sst.writeDataIndexSummary(allRecords)
+	sst.writeDataIndexSummary(allRecords, level)
 	sst.createFilter(allRecords)
 	sst.createMetaData(allRecords)
 
-	sst.options.WriteJson()
+	sst.options.config.WriteConfig()
 }
 
-func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
+func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 	count := 0
 	offset := 0
 
@@ -61,9 +59,9 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
 
 	for _, record := range allRecords {
 		// ovde se pravi data, upisujem sve rekorde
-		s.WriteRecord(record, DATA_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db")
+		s.WriteRecord(record, config.DATA_FILE_PATH+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.options.config.NumberOfSSTables)+".db")
 
-		if count%s.options.IndexInterval == 0 {
+		if count%s.options.config.IndexInterval == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
 		}
 		count++
@@ -76,7 +74,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
 }
 
 func (s *SSTable) writeIndex(index []IndexEntry) {
-	f, _ := os.OpenFile(INDEX_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+	f, _ := os.OpenFile(config.INDEX_FILE_PATH+strconv.Itoa(s.options.config.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
 	defer f.Close()
 
 	for _, entry := range index {
@@ -88,7 +86,7 @@ func (s *SSTable) writeIndex(index []IndexEntry) {
 }
 
 func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, lastKey string) int64 {
-	f, _ := os.Open(INDEX_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, _ := os.Open(config.INDEX_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
 	defer f.Close()
 
 	stat, _ := f.Stat()
@@ -123,8 +121,8 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 
 	offset := 0
 
-	for i := 0; i < len(index); i += s.options.SummaryInterval {
-		endIndex := i + s.options.SummaryInterval - 1
+	for i := 0; i < len(index); i += s.options.config.SummaryInterval {
+		endIndex := i + s.options.config.SummaryInterval - 1
 
 		if endIndex >= len(index) {
 			endIndex = len(index) - 1
@@ -144,7 +142,7 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 }
 
 func (s *SSTable) writeSummaryToFile(summary []SummaryEntry) {
-	f, _ := os.OpenFile(SUMMARY_FILE_PATH+strconv.Itoa(s.options.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+	f, _ := os.OpenFile(config.SUMMARY_FILE_PATH+strconv.Itoa(s.options.config.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
 	defer f.Close()
 
 	for _, entry := range summary {
@@ -162,7 +160,7 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry) {
 }
 
 func loadAndFindIndexOffset(fileNumber int, key string) (string, int64) {
-	f, _ := os.Open(SUMMARY_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, _ := os.Open(config.SUMMARY_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
 	defer f.Close()
 
 	stat, _ := f.Stat()
@@ -201,7 +199,7 @@ func (s *SSTable) createFilter(allRecords []record.Record) {
 		s.filter.AddElement(record.Key)
 	}
 
-	s.filter.WriteToBinFile(FILTER_FILE_PATH + strconv.Itoa(s.options.NumberOfSSTables) + ".bin")
+	s.filter.WriteToBinFile(config.FILTER_FILE_PATH + strconv.Itoa(s.options.config.NumberOfSSTables) + ".bin")
 }
 
 func (s *SSTable) createMetaData(allRecords []record.Record) {
@@ -218,22 +216,10 @@ func (s *SSTable) WriteRecord(record record.Record, filepath string) {
 	f.Write(recordBytes)
 }
 
-func (o *SSTableOptions) LoadJson() {
-	jsonData, _ := os.ReadFile(SSTABLE_CONFIG_FILE_PATH)
-
-	json.Unmarshal(jsonData, &o)
-}
-
-func (o *SSTableOptions) WriteJson() {
-	jsonData, _ := json.MarshalIndent(o, "", "  ")
-
-	os.WriteFile(SSTABLE_CONFIG_FILE_PATH, jsonData, 0644)
-}
-
 func Search(key string) string {
 	options := new(SSTableOptions)
-	options.LoadJson()
-	fileNumber := findSSTableNumber(key, options.NumberOfSSTables) // broj tabele u kojoj je zapis
+	config.LoadConfig(&options.config)
+	fileNumber := findSSTableNumber(key, options.config.NumberOfSSTables) // broj tabele u kojoj je zapis
 	if fileNumber == -1 {
 		return "Inputed key does not exist in SSTable!"
 	}
@@ -256,7 +242,7 @@ func Search(key string) string {
 }
 
 func loadRecord(fileNumber int, key string, valueOffset uint64) []byte {
-	f, _ := os.Open(DATA_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, _ := os.Open(config.DATA_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
 	defer f.Close()
 
 	stat, _ := f.Stat()
@@ -289,7 +275,7 @@ func loadRecord(fileNumber int, key string, valueOffset uint64) []byte {
 func findSSTableNumber(key string, numOfSSTables int) int {
 	for i := numOfSSTables; i > 0; i-- {
 		bf := new(bloom.BloomFilter)
-		bf.LoadBloomFilter(FILTER_FILE_PATH + strconv.Itoa(i) + ".bin")
+		bf.LoadBloomFilter(config.FILTER_FILE_PATH + strconv.Itoa(i) + ".bin")
 
 		if bf.CheckElement(key) {
 			return i
