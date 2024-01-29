@@ -54,7 +54,7 @@ func LoadSSTable(fileNumber int) (*SSTable, error) {
 
 	check := merkle.CompareMerkleTrees(mtFileNode, mtNew.Root)
 	if !check {
-		return nil, errors.New("Data has been altered!")
+		return nil, errors.New("data has been altered")
 	}
 
 	bf := new(bloom.BloomFilter)
@@ -215,7 +215,7 @@ func Search(key string) (*record.Record, error) {
 
 	fileNumber, err := findSSTableNumber(key, cfg.NumberOfSSTables) // broj tabele u kojoj je zapis
 	if fileNumber == -1 && err == nil {
-		return nil, errors.New("Key not found in any of SSTables!")
+		return nil, errors.New("key not found in any of sstables")
 	} else if err != nil {
 		return nil, err
 	}
@@ -407,7 +407,7 @@ func loadRecord(fileNumber int, key string, valueOffset uint64) (*record.Record,
 			return nil, readErr
 		}
 
-		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
+		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
 		if checkCrc32 != crc32 {
 			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
 			continue

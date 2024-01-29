@@ -37,7 +37,10 @@ func (m *Menu) Start() {
 			fmt.Println(record)
 		case "3":
 			key, _ := engine.UserInput(false)
-			engine.Delete(key)
+			err := engine.Delete(key)
+			if err != nil {
+				fmt.Println(err)
+			}
 		case "X":
 			os.Exit(0)
 		default:

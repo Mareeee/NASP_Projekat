@@ -38,11 +38,8 @@ func (e *Engine) Engine() {
 	e.all_memtables = *memtable.LoadAllMemtables(e.config)
 	e.active_memtable_index = 0
 
+	// TODO: Uradi brisanje WAL-a
 	e.recover()
-
-	// for i := 0; i < len(e.all_memtables); i++ {
-	// 	e.all_memtables[i].PrintMemtableRecords()
-	// }
 }
 
 func (e *Engine) Put(key string, value []byte) error {
@@ -65,7 +62,7 @@ func (e *Engine) Get(key string) *record.Record {
 		previous_index := e.active_memtable_index - 1
 		//we made a full circle
 		if previous_index < 0 {
-			previous_index = e.config.NumberOfMemtables
+			previous_index = e.config.NumberOfMemtables - 1
 		}
 		i = previous_index
 	}
@@ -77,43 +74,59 @@ func (e *Engine) Get(key string) *record.Record {
 
 		record = e.all_memtables[i].Search(key)
 		//we found record with the key
-		if record != nil {
+		if record != nil && !record.Tombstone {
 			return record
 		}
 
 		//going to next memtable
 		i = i - 1
 		if i < 0 {
-			i = e.config.NumberOfMemtables
+			i = e.config.NumberOfMemtables - 1
 		}
 	}
 
 	//going through cache
 	record, found := e.cache.Get(key)
 	//we found it in cache
-	if found {
+	if found && !record.Tombstone {
 		return record
 	}
 
 	//going through sstable
 	record, _ = sstable.Search(key)
 	//we found it in sstable
-	if record != nil {
+	if record != nil && !record.Tombstone {
 		return record
 	}
 
-	//we haven't found a record with the given key
+	//we haven't found a record with the given key or it's already been deleted
 	return nil
 }
 
-func (e *Engine) Delete(key string) {
-	value := []byte("d")
-	record := record.NewRecord(key, value, true)
+func (e *Engine) Delete(key string) error {
+	record := e.Get(key)
+	if record == nil {
+		return errors.New("record not found or unable to be deleted")
+	}
 
-	e.wal.AddRecord(key, value, true)
+	e.wal.AddRecord(record.Key, record.Value, true)
 	e.AddRecordToMemtable(*record)
+	index := e.active_memtable_index
+	for i := 0; i < e.config.NumberOfMemtables; i++ {
+		if e.all_memtables[index].CurrentSize == 0 {
+			break
+		}
+
+		found := e.all_memtables[index].Search(record.Key)
+		if found != nil {
+			e.all_memtables[index].Delete(*record)
+			break
+		}
+		index = (index - 1) % e.config.NumberOfMemtables
+	}
 
 	e.cache.Set(key, *record)
+	return nil
 }
 
 func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
@@ -145,6 +158,7 @@ func (e *Engine) recover() error {
 	return nil
 }
 
+// TODO: Dodati LSM kompakcije
 func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 	successful := e.all_memtables[e.active_memtable_index].Insert(recordToAdd)
 	if !successful {

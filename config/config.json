@@ -1,10 +1,10 @@
 {
   "NumberOfLevels": 2,
   "MaxTables": 2,
-  "NumberOfSegments": 2,
-  "LowWaterMark": 1,
-  "SegmentSize": 3,
-  "LastSegmentSize": 27,
+  "NumberOfSegments": 4,
+  "LowWaterMark": 0,
+  "SegmentSize": 128,
+  "LastSegmentSize": 17,
   "MaxHeight": 5,
   "NumberOfSSTables": 3,
   "IndexInterval": 2,
@@ -13,7 +13,7 @@
   "Rate": 2,
   "M": 3,
   "MaxSize": 9,
-  "MemtableStructure": "skiplist",
+  "MemtableStructure": "btree",
   "NumberOfMemtables": 2,
   "CacheMaxSize": 3
 }
