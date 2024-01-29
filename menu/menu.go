@@ -29,7 +29,7 @@ func (m *Menu) Start() {
 
 		switch option {
 		case "1":
-			engine.Put()
+			//engine.Put()
 		case "2":
 			engine.Get()
 		case "3":

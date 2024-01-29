@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"main/cache"
 	"main/config"
 	"main/memtable"
@@ -42,7 +43,15 @@ func (e *Engine) Engine() {
 	}
 }
 
-func (e *Engine) Put() {
+func (e *Engine) Put(key string, value []byte) error {
+	err := e.wal.AddRecord(key, value, false)
+	if err != nil {
+		return errors.New("Failed wal insert")
+	}
+	recordToAdd := record.NewRecord(key, value, false)
+	e.AddRecordToMemtable(*recordToAdd)
+	e.cache.Set(key, *recordToAdd)
+	return nil
 }
 
 func (e *Engine) Get() {
@@ -50,7 +59,7 @@ func (e *Engine) Get() {
 
 func (e *Engine) Delete(key string) {
 	value := []byte("d")
-	record := record.NewRecord(key, value, false)
+	record := record.NewRecord(key, value, true)
 
 	e.wal.AddRecord(key, value, true)
 	e.AddRecordToMemtable(*record)
