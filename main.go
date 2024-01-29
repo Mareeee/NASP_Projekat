@@ -25,8 +25,8 @@ func main() {
 
 	// sstable.NewSSTable(records)
 
-	// records, _ := sstable.PrefixScan("ja")
-	records, _ := sstable.RangeScan("j", "ja")
+	records, _ := sstable.PrefixScan("ja")
+	// // records, _ := sstable.RangeScan("j", "ja")
 	for _, record := range records {
 		fmt.Println(record.Key)
 	}

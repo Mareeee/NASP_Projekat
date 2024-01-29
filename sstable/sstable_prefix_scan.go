@@ -33,7 +33,14 @@ func PrefixScan(prefix string) ([]*record.Record, error) {
 			return nil, err
 		}
 
-		record, err := loadRecordPrefixScan(i, prefix, uint64(valueOffset))
+		firstPrefixOffset, err := findFirstPrefixOffset(i, prefix, uint64(valueOffset))
+		if err != nil {
+			return nil, err
+		} else if firstPrefixOffset == -1 {
+			return nil, nil
+		}
+
+		record, err := loadRecordPrefixScan(i, prefix, uint64(firstPrefixOffset))
 		if err != nil {
 			return nil, err
 		}
@@ -43,8 +50,8 @@ func PrefixScan(prefix string) ([]*record.Record, error) {
 				resultRecords = append(resultRecords, record)
 			}
 
-			valueOffset += int64(len(record.ToBytes()))
-			record, err = loadRecordPrefixScan(i, prefix, uint64(valueOffset))
+			firstPrefixOffset += int64(len(record.ToBytes()))
+			record, err = loadRecordPrefixScan(i, prefix, uint64(firstPrefixOffset))
 			if err != nil {
 				return nil, err
 			}
@@ -152,7 +159,7 @@ func loadAndFindValueOffsetPrefixScan(fileNumber int, summaryOffset uint64, pref
 		}
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
-		if prefix >= getPrefix(foundKey, len(prefix)) {
+		if prefix > getPrefix(foundKey, len(prefix)) {
 			lastReadOffset = offset
 		} else {
 			return lastReadOffset, nil
@@ -217,6 +224,63 @@ func loadRecordPrefixScan(fileNumber int, prefix string, valueOffset uint64) (*r
 	}
 
 	return nil, nil
+}
+
+func findFirstPrefixOffset(fileNumber int, prefix string, valueOffset uint64) (int64, error) {
+	f, err := os.Open(config.DATA_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	if err != nil {
+		return -1, err
+	}
+	defer f.Close()
+
+	for {
+		_, seekErr := f.Seek(int64(valueOffset), io.SeekStart)
+		if seekErr != nil {
+			return -1, seekErr
+		}
+
+		headerBytes := make([]byte, 29)
+		_, readErr := f.Read(headerBytes)
+		if readErr == io.EOF {
+			return -1, readErr
+		} else if readErr != nil {
+			return -1, readErr
+		}
+
+		crc32 := binary.BigEndian.Uint32(headerBytes[0:4])
+		timestamp := int64(binary.BigEndian.Uint64(headerBytes[4:12]))
+		tombstone := headerBytes[12] != 0
+		keySize := int64(binary.BigEndian.Uint64(headerBytes[13:21]))
+		valueSize := int64(binary.BigEndian.Uint64(headerBytes[21:29]))
+
+		keyBytes := make([]byte, keySize)
+		_, readErr = f.Read(keyBytes)
+		if readErr != nil {
+			return -1, readErr
+		}
+		loadedKey := string(keyBytes)
+
+		value := make([]byte, valueSize)
+		_, readErr = f.Read(value)
+		if readErr != nil {
+			return -1, readErr
+		}
+
+		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
+		if checkCrc32 != crc32 {
+			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			continue
+		}
+
+		if getPrefix(loadedKey, len(prefix)) < prefix {
+			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			continue
+		} else if getPrefix(loadedKey, len(prefix)) > prefix {
+			return -1, nil
+		} else {
+			return int64(valueOffset), nil
+		}
+	}
 }
 
 func getPrefix(key string, length int) string {
