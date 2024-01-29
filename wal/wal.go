@@ -21,8 +21,8 @@ func LoadWal(config config.Config) (*Wal, error) {
 }
 
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
-func (w *Wal) AddRecord(key string, value []byte) error {
-	record := record.NewRecord(key, value)
+func (w *Wal) AddRecord(key string, value []byte, delete bool) error {
+	record := record.NewRecord(key, value, delete)
 	recordBytes := record.ToBytes()
 
 	remainingSpaceInLastSegment := w.config.SegmentSize - w.config.LastSegmentSize

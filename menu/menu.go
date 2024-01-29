@@ -33,7 +33,7 @@ func (m *Menu) Start() {
 		case "2":
 			engine.Get()
 		case "3":
-			engine.Delete()
+			engine.Delete("Mare")
 		case "X":
 			os.Exit(0)
 		default:
