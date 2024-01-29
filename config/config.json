@@ -10,5 +10,9 @@
     "IndexInterval": 2,
     "SummaryInterval": 2,
     "Capacity": 10,
-    "Rate": 2
+    "Rate": 2,
+    "M": 3,
+    "MaxSize": 9,
+	  "MemtableStructure": "skiplist",
+    "NumberOfMemtables": 2
   }

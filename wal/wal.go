@@ -14,34 +14,50 @@ type Wal struct {
 	config config.Config
 }
 
-func LoadWal() *Wal {
+func LoadWal() (*Wal, error) {
 	w := new(Wal)
-	config.LoadConfig(&w.config)
-
-	return w
+	err := config.LoadConfig(&w.config)
+	if err != nil {
+		return nil, err
+	}
+	return w, nil
 }
 
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
-func (w *Wal) AddRecord(key string, value []byte) {
+func (w *Wal) AddRecord(key string, value []byte) error {
 	record := record.NewRecord(key, value)
-
-	if w.config.LastSegmentNumberOfRecords == w.config.SegmentSize {
-		w.config.NumberOfSegments++
-		w.config.LastSegmentNumberOfRecords = 0
-	}
-
-	w.AddRecordToSegment(*record)
-}
-
-func (w *Wal) AddRecordToSegment(record record.Record) {
-	w.config.LastSegmentNumberOfRecords++
-	w.WriteRecord(record)
-	w.config.WriteConfig()
-}
-
-func (w Wal) WriteRecord(record record.Record) error {
 	recordBytes := record.ToBytes()
 
+	remainingSpaceInLastSegment := w.config.SegmentSize - w.config.LastSegmentSize
+
+	if remainingSpaceInLastSegment < len(recordBytes) {
+		err := w.AddRecordToSegment(recordBytes[:remainingSpaceInLastSegment])
+		if err != nil {
+			return err
+		}
+		w.config.NumberOfSegments++
+		w.config.LastSegmentSize = 0
+		err = w.AddRecordToSegment(recordBytes[remainingSpaceInLastSegment:])
+		if err != nil {
+			return err
+		}
+	} else {
+		err := w.AddRecordToSegment(recordBytes)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Wal) AddRecordToSegment(recordBytes []byte) error {
+	w.config.LastSegmentSize += len(recordBytes)
+	w.WriteToLastSegment(recordBytes)
+	err := w.config.WriteConfig()
+	return err
+}
+
+func (w Wal) WriteToLastSegment(recordBytes []byte) error {
 	f, err := os.OpenFile(getPath(w.config.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return err
@@ -55,42 +71,22 @@ func (w Wal) WriteRecord(record record.Record) error {
 /* Ucitavanje svih zapisa odjednom */
 func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record
+	var data []byte
 
-	config.LoadConfig(&w.config)
+	err := config.LoadConfig(&w.config)
+	if err != nil {
+		return nil, err
+	}
 
 	for i := 1; i <= w.config.NumberOfSegments; i++ {
-		loadedRecords, err := w.LoadRecordsFromSegment(getPath(i))
+		loadedData, err := w.LoadDataFromSegment(getPath(i))
 		if err != nil {
 			return nil, err
 		}
-		records = append(records, loadedRecords...)
+		data = append(data, loadedData...) // ucitavam sve segmente u veliki niz bajtova, ovako radim da bih lakse resio prelamanje rekorda
 	}
 
-	return records, nil
-}
-
-/* Ucitava sve zapise segmenta u memoriju */
-func (w *Wal) LoadRecordsFromSegment(fileName string) ([]*record.Record, error) {
-	var records []*record.Record
-
-	f, err := os.OpenFile(fileName, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	data := make([]byte, stat.Size())
-	_, err = f.Read(data)
-	if err != nil {
-		return nil, err
-	}
-
-	for len(data) != 0 { // ucitavaj iz fajla sve dok ima nesto
+	for len(data) != 0 {
 		crc32 := binary.BigEndian.Uint32(data[0:4])
 		timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
 		tombstone := false
@@ -115,8 +111,30 @@ func (w *Wal) LoadRecordsFromSegment(fileName string) ([]*record.Record, error) 
 	return records, nil
 }
 
+/* Ucitava sve zapise segmenta u memoriju */
+func (w *Wal) LoadDataFromSegment(fileName string) ([]byte, error) {
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, stat.Size())
+	_, err = f.Read(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 /* Brise segmente na osnovu lowWaterMark iz WalOptions */
-func (w *Wal) DeleteSegments() {
+func (w *Wal) DeleteSegments() error {
 	for i := 1; i <= w.config.LowWaterMark; i++ {
 		w.config.NumberOfSegments--
 		os.Remove(getPath(i)) // brise fajl
@@ -127,16 +145,18 @@ func (w *Wal) DeleteSegments() {
 	}
 
 	if w.config.NumberOfSegments == 0 { // ako su obrisani svi segmenti
-		w.config.NumberOfSegments = 1           // uvek mora postojati jedan u koji se upisuje
-		w.config.LastSegmentNumberOfRecords = 0 // prazan je
+		w.config.NumberOfSegments = 1 // uvek mora postojati jedan u koji se upisuje
+		w.config.LastSegmentSize = 0  // prazan je
 	}
 
-	w.config.WriteConfig()
+	err := w.config.WriteConfig()
+	return err
 }
 
-func (w *Wal) SetLowWaterMark(newLowWaterMark int) {
+func (w *Wal) ChangeLowWaterMark(newLowWaterMark int) error {
 	w.config.LowWaterMark = newLowWaterMark
-	w.config.WriteConfig()
+	err := w.config.WriteConfig()
+	return err
 }
 
 /* Na osnovu rednog broja segmenta kreira filePath za segment */
