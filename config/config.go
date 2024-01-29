@@ -9,7 +9,7 @@ const (
 	ALL_CONFIG_FILE_PATH       = "config/config.json"
 	SEGMENT_FILE_PATH          = "data/wal/wal_"
 	SSTABLE_DIRECTORY          = "data/sstable"
-	DATA_FILE_PATH             = "data/sstable/"
+	DATA_FILE_PATH           = "data/sstable/sstable_data_"
 	INDEX_FILE_PATH            = "data/sstable/sstable_index_"
 	SUMMARY_FILE_PATH          = "data/sstable/sstable_summary_"
 	FILTER_FILE_PATH           = "data/sstable/sstable_filter_"

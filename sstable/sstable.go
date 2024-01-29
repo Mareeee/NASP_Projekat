@@ -407,7 +407,7 @@ func loadRecord(fileNumber int, key string, valueOffset uint64) (*record.Record,
 			return nil, readErr
 		}
 
-		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
+		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
 		if checkCrc32 != crc32 {
 			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
 			continue
