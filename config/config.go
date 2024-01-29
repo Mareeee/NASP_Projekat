@@ -34,6 +34,7 @@ const (
 	CONFIG_MAX_SIZE            = 9
 	CONFIG_MEMTABLE_STRUCTURE  = "skiplist"
 	CONFIG_NUMBER_OF_MEMTABLES = 2
+	CONFIG_CACHE_MAX_SIZE      = 3
 )
 
 type Config struct {
@@ -60,6 +61,8 @@ type Config struct {
 	MaxSize           int    `json:"MaxSize"`
 	MemtableStructure string `json:"MemtableStructure"`
 	NumberOfMemtables int    `json:"NumberOfMemtables"`
+	// cache
+	CacheMaxSize int `json:"CacheMaxSize"`
 }
 
 func (cfg *Config) checkValidity() {
@@ -123,10 +126,15 @@ func (cfg *Config) checkValidity() {
 	if cfg.NumberOfMemtables < 0 {
 		cfg.NumberOfMemtables = CONFIG_NUMBER_OF_MEMTABLES
 	}
+
+	if cfg.CacheMaxSize < 0 {
+		cfg.CacheMaxSize = CONFIG_CACHE_MAX_SIZE
+	}
 }
 
 func LoadConfig(cfg *Config) error {
 	jsonFile, err := os.ReadFile(ALL_CONFIG_FILE_PATH)
+	// ako nema fajla, postavlja na default vrednosti
 	if err != nil {
 		cfg.NumberOfLevels = CONFIG_NUMBER_OF_LEVELS
 		cfg.MaxTabels = CONFIG_MAX_TABLES
@@ -143,6 +151,7 @@ func LoadConfig(cfg *Config) error {
 		cfg.MaxSize = CONFIG_MAX_SIZE
 		cfg.MemtableStructure = CONFIG_MEMTABLE_STRUCTURE
 		cfg.NumberOfMemtables = CONFIG_NUMBER_OF_MEMTABLES
+		cfg.CacheMaxSize = CONFIG_CACHE_MAX_SIZE
 	} else {
 		err = json.Unmarshal(jsonFile, &cfg)
 		if err != nil {

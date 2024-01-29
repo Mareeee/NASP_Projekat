@@ -14,12 +14,9 @@ type Wal struct {
 	config config.Config
 }
 
-func LoadWal() (*Wal, error) {
+func LoadWal(config config.Config) (*Wal, error) {
 	w := new(Wal)
-	err := config.LoadConfig(&w.config)
-	if err != nil {
-		return nil, err
-	}
+	w.config = config
 	return w, nil
 }
 

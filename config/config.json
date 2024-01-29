@@ -14,5 +14,6 @@
     "M": 3,
     "MaxSize": 9,
 	  "MemtableStructure": "skiplist",
-    "NumberOfMemtables": 2
+    "NumberOfMemtables": 2,
+    "CacheMaxSize" : 3
   }

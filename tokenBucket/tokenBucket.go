@@ -13,9 +13,9 @@ type TokenBucket struct {
 	LastToken time.Time
 }
 
-func LoadTokenBucket() *TokenBucket {
+func LoadTokenBucket(config config.Config) *TokenBucket {
 	tb := new(TokenBucket)
-	config.LoadConfig(&tb.config)
+	tb.config = config
 	tb.Tokens = tb.config.Capacity
 	tb.LastToken = time.Now()
 	return tb
