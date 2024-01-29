@@ -1,6 +1,7 @@
 package memtable
 
 import (
+	"fmt"
 	btree "main/bTree"
 	"main/config"
 	"main/record"
@@ -11,13 +12,14 @@ import (
 type Memtable struct {
 	skiplist    *skiplist.SkipList
 	bTree       *btree.BTree
-	currentSize int
+	CurrentSize int
 	config      config.Config
 }
 
-func (mt *Memtable) MemtableConstructor() {
-	mt.currentSize = 0
-	config.LoadConfig(&mt.config)
+func MemtableConstructor(config config.Config) *Memtable {
+	mt := new(Memtable)
+	mt.CurrentSize = 0
+	mt.config = config
 	if mt.config.MemtableStructure == "skiplist" {
 		mt.skiplist = skiplist.NewSkipList()
 		mt.bTree = nil
@@ -25,27 +27,39 @@ func (mt *Memtable) MemtableConstructor() {
 		mt.skiplist = nil
 		mt.bTree = btree.NewBTree()
 	}
+	return mt
 }
 
-func (mt *Memtable) Insert(record record.Record) {
-	if mt.currentSize < mt.config.MaxSize {
+func LoadAllMemtables(config config.Config) *[]Memtable {
+	var allMemtables []Memtable
+	for i := 0; i < config.NumberOfMemtables; i++ {
+		allMemtables = append(allMemtables, *MemtableConstructor(config))
+	}
+	return &allMemtables
+}
+
+func (mt *Memtable) Insert(record record.Record) bool {
+	if mt.CurrentSize < mt.config.MaxSize {
 		if mt.config.MemtableStructure == "skiplist" {
 			_, found := mt.skiplist.Search(record.Key)
 			if found {
 				mt.Update(record.Key, record.Value)
 			} else {
 				mt.skiplist.Insert(record)
-				mt.currentSize += 1
+				mt.CurrentSize += 1
 			}
 		} else if mt.config.MemtableStructure == "btree" {
 			//it updated the value if the key already existed
 			found := mt.bTree.SearchForInsertion(record.Key, record)
 			if !found {
 				mt.bTree.Insert(record.Key, record)
-				mt.currentSize += 1
+				mt.CurrentSize += 1
 			}
 		}
+	} else {
+		return false
 	}
+	return true
 }
 
 func (mt *Memtable) Update(key string, value []byte) {
@@ -74,9 +88,16 @@ func (mt *Memtable) Delete(record record.Record) {
 	}
 }
 
+func (mt *Memtable) PrintMemtableRecords() {
+	allRecords := mt.skiplist.GetRecords()
+	for i := 0; i < len(allRecords); i++ {
+		fmt.Println(allRecords[i])
+	}
+}
+
 func (mt *Memtable) Flush() []record.Record {
 	var elements []record.Record
-	mt.currentSize = 0
+	mt.CurrentSize = 0
 	mt.skiplist = nil
 	mt.bTree = nil
 	if mt.config.MemtableStructure == "skiplist" {

@@ -20,6 +20,7 @@ func (m *Menu) print() {
 
 func (m *Menu) Start() {
 	engine := engine.Engine{} // preko ovoga pozivamo funkcije
+	engine.Engine()
 	for {
 		m.print()
 		optionScanner := bufio.NewScanner(os.Stdin)
