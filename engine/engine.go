@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"main/cache"
 	"main/config"
 	"main/memtable"
@@ -49,6 +50,20 @@ func (e *Engine) Get() {
 func (e *Engine) Delete() {
 }
 
+func UserInput(inputValueAlso bool) (string, []byte) {
+	var key string
+	var value string
+
+	fmt.Print("Input key: ")
+	fmt.Scanln(key)
+	if inputValueAlso == true {
+		fmt.Print("Input value: ")
+		fmt.Scanln(value)
+		return key, []byte(value)
+	} else {
+		return key, nil
+	}
+}
 func (e *Engine) recover() error {
 	all_records, err := e.wal.LoadAllRecords()
 	if err != nil {
