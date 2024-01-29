@@ -38,6 +38,21 @@ func LoadAllMemtables(config config.Config) *[]Memtable {
 	return &allMemtables
 }
 
+func (mt *Memtable) Search(key string) *record.Record {
+	var record *record.Record
+	if mt.config.MemtableStructure == "skiplist" {
+		node, _ := mt.skiplist.Search(key)
+		if node != nil {
+			record = &node.Record
+		} else {
+			record = nil
+		}
+	} else if mt.config.MemtableStructure == "btree" {
+		record = mt.bTree.SearchForValue(key)
+	}
+	return record
+}
+
 func (mt *Memtable) Insert(record record.Record) bool {
 	if mt.CurrentSize < mt.config.MaxSize {
 		if mt.config.MemtableStructure == "skiplist" {

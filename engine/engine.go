@@ -4,6 +4,7 @@ import (
 	"main/cache"
 	"main/config"
 	"main/memtable"
+	"main/record"
 	"main/sstable"
 	tokenbucket "main/tokenBucket"
 	"main/wal"
@@ -12,6 +13,7 @@ import (
 type Engine struct {
 	config                config.Config
 	cache                 cache.Cache
+	sstable               sstable.SSTable
 	wal                   wal.Wal
 	tbucket               tokenbucket.TokenBucket
 	all_memtables         []memtable.Memtable
@@ -43,7 +45,54 @@ func (e *Engine) Engine() {
 func (e *Engine) Put() {
 }
 
-func (e *Engine) Get() {
+func (e *Engine) Get(key string) *record.Record {
+	var record *record.Record
+	// going through memtable
+	i := e.active_memtable_index
+	//is active memtable empty, if it is try previous
+	if e.all_memtables[i].CurrentSize == 0 {
+		previous_index := e.active_memtable_index - 1
+		//we made a full circle
+		if previous_index < 0 {
+			previous_index = e.config.NumberOfMemtables
+		}
+		i = previous_index
+	}
+	for {
+		//we haven't found a record with the given key
+		if e.all_memtables[i].CurrentSize == 0 {
+			break
+		}
+
+		record = e.all_memtables[i].Search(key)
+		//we found record with the key
+		if record != nil {
+			return record
+		}
+
+		//going to next memtable
+		i = i - 1
+		if i < 0 {
+			i = e.config.NumberOfMemtables
+		}
+	}
+
+	//going through cache
+	record, found := e.cache.Get(key)
+	//we found it in cache
+	if found {
+		return record
+	}
+
+	//going through sstable
+	record, _ = sstable.Search(key)
+	//we found it in sstable
+	if record != nil {
+		return record
+	}
+
+	//we haven't found a record with the given key
+	return nil
 }
 
 func (e *Engine) Delete() {

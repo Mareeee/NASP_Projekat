@@ -31,7 +31,8 @@ func (m *Menu) Start() {
 		case "1":
 			engine.Put()
 		case "2":
-			engine.Get()
+			record := engine.Get("Mare")
+			fmt.Println(record)
 		case "3":
 			engine.Delete()
 		case "X":
