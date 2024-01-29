@@ -3,6 +3,7 @@ package menu
 import (
 	"bufio"
 	"fmt"
+	"main/engine"
 	"os"
 )
 
@@ -18,6 +19,7 @@ func (m *Menu) print() {
 }
 
 func (m *Menu) Start() {
+	engine := engine.Engine{} // preko ovoga pozivamo funkcije
 	for {
 		m.print()
 		optionScanner := bufio.NewScanner(os.Stdin)
@@ -26,13 +28,12 @@ func (m *Menu) Start() {
 
 		switch option {
 		case "1":
-			fmt.Println("PUT: ")
+			engine.Put()
 		case "2":
-			fmt.Println("GET: ")
+			engine.Get()
 		case "3":
-			fmt.Println("DELETE: ")
+			engine.Delete()
 		case "X":
-			fmt.Println("Exiting...")
 			os.Exit(0)
 		default:
 			fmt.Println("Invalid option!")
