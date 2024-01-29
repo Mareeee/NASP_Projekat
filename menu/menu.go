@@ -29,12 +29,12 @@ func (m *Menu) Start() {
 
 		switch option {
 		case "1":
-			engine.Put()
+			//engine.Put()
 		case "2":
 			record := engine.Get("Mare")
 			fmt.Println(record)
 		case "3":
-			engine.Delete()
+			engine.Delete("Mare")
 		case "X":
 			os.Exit(0)
 		default:

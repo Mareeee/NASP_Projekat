@@ -18,9 +18,9 @@ type Record struct {
 }
 
 /* Konstruktor za pravljenje novog zapisa */
-func NewRecord(key string, value []byte) *Record {
+func NewRecord(key string, value []byte, delete bool) *Record {
 	record := &Record{
-		Tombstone: false,
+		Tombstone: delete,
 		Timestamp: time.Now().Unix(),
 		KeySize:   int64(len([]byte(key))),
 		ValueSize: int64(len([]byte(value))),
