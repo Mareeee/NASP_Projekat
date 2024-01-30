@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"main/cache"
+	"main/cms"
 	"main/config"
 	"main/memtable"
 	"main/record"
@@ -156,6 +157,62 @@ func (e *Engine) recover() error {
 	}
 
 	return nil
+}
+
+func (e *Engine) CmsUsage() {
+	fmt.Println("1 - Create new cms.")
+	fmt.Println("2 - Add new element")
+	fmt.Println("3 - Delete cms")
+	fmt.Println("4 - Check frequency of element")
+
+	fmt.Print("Input option: ")
+	optionScanner := bufio.NewScanner(os.Stdin)
+	optionScanner.Scan()
+	option := optionScanner.Text()
+	switch option {
+	case "1":
+		fmt.Print("Input key: ")
+		keyScanner := bufio.NewScanner(os.Stdin)
+		keyScanner.Scan()
+		key := optionScanner.Text()
+		cms := new(cms.CountMinSketch)
+		cms.NewCountMinSketch(0.1, 0.1)
+		e.Put(key, cms.ToBytes())
+
+	case "2":
+		fmt.Print("Input key: ")
+		keyScanner := bufio.NewScanner(os.Stdin)
+		keyScanner.Scan()
+		key := optionScanner.Text()
+		record := e.Get(key)
+		cms := cms.LoadCMS(record.Value)
+		fmt.Print("Input value: ")
+		valueScanner := bufio.NewScanner(os.Stdin)
+		valueScanner.Scan()
+		value := valueScanner.Text()
+		cms.AddElement(value)
+		e.Put(record.Key, cms.ToBytes())
+
+	case "3":
+		fmt.Print("Input key: ")
+		keyScanner := bufio.NewScanner(os.Stdin)
+		keyScanner.Scan()
+		key := optionScanner.Text()
+		e.Delete(key)
+	case "4":
+		fmt.Print("Input key: ")
+		keyScanner := bufio.NewScanner(os.Stdin)
+		keyScanner.Scan()
+		key := optionScanner.Text()
+		record := e.Get(key)
+		cms := cms.LoadCMS(record.Value)
+		fmt.Print("Input value: ")
+		valueScanner := bufio.NewScanner(os.Stdin)
+		valueScanner.Scan()
+		value := valueScanner.Text()
+		fmt.Println(cms.NumberOfRepetitions(value))
+		e.Put(record.Key, cms.ToBytes())
+	}
 }
 
 // TODO: Dodati LSM kompakcije

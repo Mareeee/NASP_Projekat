@@ -49,6 +49,7 @@ func (m *Menu) Start() {
 				}
 			case "4":
 				// cms
+				engine.CmsUsage()
 			case "5":
 				// bf
 			case "6":
