@@ -10,7 +10,9 @@ import (
 	"main/merkle"
 	"main/record"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 type SSTable struct {
@@ -30,14 +32,14 @@ type SummaryEntry struct {
 	offset   int64 //  offset s kog citamo iz indexa
 }
 
-func LoadSSTable(fileNumber int) (*SSTable, error) {
+func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
 	cfg := new(config.Config)
 	err := config.LoadConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	allRecords, err := record.LoadRecordsFromFile(config.DATA_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	allRecords, err := record.LoadRecordsFromFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".db")
 
 	if err != nil {
 		return nil, err
@@ -49,7 +51,7 @@ func LoadSSTable(fileNumber int) (*SSTable, error) {
 	}
 	mtNew := merkle.NewMerkleTree(allRecordsBytes)
 
-	mtFile := merkle.ReadFromBinFile(config.METADATA_FILE_PATH + strconv.Itoa(fileNumber) + ".bin")
+	mtFile := merkle.ReadFromBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
 	mtFileNode := merkle.DeserializeMerkleTree(mtFile)
 
 	check := merkle.CompareMerkleTrees(mtFileNode, mtNew.Root)
@@ -58,7 +60,7 @@ func LoadSSTable(fileNumber int) (*SSTable, error) {
 	}
 
 	bf := new(bloom.BloomFilter)
-	bf.LoadBloomFilter(config.FILTER_FILE_PATH + strconv.Itoa(fileNumber) + ".bin")
+	bf.LoadBloomFilter(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
 
 	sst := new(SSTable)
 	sst.filter = bf
@@ -67,22 +69,17 @@ func LoadSSTable(fileNumber int) (*SSTable, error) {
 	return sst, nil
 }
 
-func NewSSTable(allRecords []record.Record, level int) (*SSTable, error) {
+func NewSSTable(allRecords []record.Record, config config.Config, level int) (*SSTable, error) {
 	sst := new(SSTable)
-	cfg := new(config.Config)
-	err := config.LoadConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	sst.config = *cfg
+	sst.config = config
 
 	sst.config.NumberOfSSTables++
 
-	sst.writeDataIndexSummary(allRecords)
-	sst.createFilter(allRecords)
-	sst.createMetaData(allRecords)
+	sst.writeDataIndexSummary(allRecords, level)
+	sst.createFilter(allRecords, level)
+	sst.createMetaData(allRecords, level)
 
-	err = sst.config.WriteConfig()
+	err := sst.config.WriteConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +87,7 @@ func NewSSTable(allRecords []record.Record, level int) (*SSTable, error) {
 	return sst, nil
 }
 
-func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
+func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 	count := 0
 	offset := 0
 
@@ -98,7 +95,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
 
 	for _, record := range allRecords {
 		// ovde se pravi data, upisujem sve rekorde
-		s.WriteRecord(record, config.DATA_FILE_PATH+strconv.Itoa(s.config.NumberOfSSTables)+".db")
+		s.WriteRecord(record, config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.config.NumberOfSSTables)+".db")
 
 		if count%s.config.IndexInterval == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
@@ -107,13 +104,13 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record) {
 		offset += len(record.ToBytes())
 	}
 
-	s.writeIndex(index)
+	s.writeIndex(index, level)
 	summary := s.buildSummary(index)
-	s.writeSummaryToFile(summary)
+	s.writeSummaryToFile(summary, level)
 }
 
-func (s *SSTable) writeIndex(index []IndexEntry) {
-	f, err := os.OpenFile(config.INDEX_FILE_PATH+strconv.Itoa(s.config.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+func (s *SSTable) writeIndex(index []IndexEntry, level int) {
+	f, err := os.OpenFile(config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_index_"+strconv.Itoa(s.config.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		fmt.Println("Error opening or creating index file:", err)
 		return
@@ -167,8 +164,8 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 	return summary
 }
 
-func (s *SSTable) writeSummaryToFile(summary []SummaryEntry) {
-	f, err := os.OpenFile(config.SUMMARY_FILE_PATH+strconv.Itoa(s.config.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
+func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
+	f, err := os.OpenFile(config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_summary_"+strconv.Itoa(s.config.NumberOfSSTables)+".db", os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		fmt.Println("Error opening or creating summary file:", err)
 		return
@@ -239,8 +236,24 @@ func Search(key string) (*record.Record, error) {
 
 // trazimo SSTabelu gde gde je sa velikom verovatnocom nas zapis
 func findSSTableNumber(key string, numOfSSTables int) (int, error) {
-	for i := numOfSSTables; i > 0; i-- {
-		sst, err := LoadSSTable(i)
+	var data [][]int
+	files, _ := os.ReadDir(config.SSTABLE_DIRECTORY)
+
+	for _, file := range files {
+		if strings.Contains(file.Name(), "sstable_data") {
+			sstable_tokens := strings.Split(file.Name(), "_")
+			level, _ := strconv.Atoi(sstable_tokens[1])
+			index, _ := strconv.Atoi(sstable_tokens[4])
+			data = append(data, []int{level, index})
+
+			sort.Slice(data, func(i, j int) bool {
+				return data[i][1] < data[j][1]
+			})
+		}
+	}
+
+	for i := len(data); i > 0; i-- {
+		sst, err := LoadSSTable(data[i][0], data[i][1])
 
 		if err != nil {
 			return -1, err
@@ -254,7 +267,7 @@ func findSSTableNumber(key string, numOfSSTables int) (int, error) {
 }
 
 func loadAndFindIndexOffset(fileNumber int, key string) (string, int64, error) {
-	f, err := os.Open(config.SUMMARY_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(s.config.NumberOfSSTables) + ".db")
 	if err != nil {
 		return "", -1, err
 	}
@@ -314,7 +327,7 @@ func loadAndFindIndexOffset(fileNumber int, key string) (string, int64, error) {
 }
 
 func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, lastKey string) (int64, error) {
-	f, err := os.Open(config.INDEX_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(s.config.NumberOfSSTables) + ".db")
 	if err != nil {
 		return -1, err
 	}
@@ -368,7 +381,7 @@ func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, la
 }
 
 func loadRecord(fileNumber int, key string, valueOffset uint64) (*record.Record, error) {
-	f, err := os.Open(config.DATA_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return nil, err
 	}
@@ -421,7 +434,7 @@ func loadRecord(fileNumber int, key string, valueOffset uint64) (*record.Record,
 	}
 }
 
-func (s *SSTable) createFilter(allRecords []record.Record) {
+func (s *SSTable) createFilter(allRecords []record.Record, level int) {
 	s.filter = new(bloom.BloomFilter)
 	s.filter.NewBloomFilter(len(allRecords), 0.01)
 
@@ -429,16 +442,16 @@ func (s *SSTable) createFilter(allRecords []record.Record) {
 		s.filter.AddElement(record.Key)
 	}
 
-	s.filter.WriteToBinFile(config.FILTER_FILE_PATH + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
+	s.filter.WriteToBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_filter_" + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
 }
 
-func (s *SSTable) createMetaData(allRecords []record.Record) {
+func (s *SSTable) createMetaData(allRecords []record.Record, level int) {
 	var allRecordsBytes [][]byte
 	for _, record := range allRecords {
 		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
 	}
 	s.metadata = merkle.NewMerkleTree(allRecordsBytes)
-	s.metadata.WriteToBinFile(config.METADATA_FILE_PATH + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
+	s.metadata.WriteToBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_metadata_" + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
 }
 
 func (s *SSTable) WriteRecord(record record.Record, filepath string) {
