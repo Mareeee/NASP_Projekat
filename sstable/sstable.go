@@ -210,24 +210,24 @@ func Search(key string) (*record.Record, error) {
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
-	fileNumber, err := findSSTableNumber(key, cfg.NumberOfSSTables) // broj tabele u kojoj je zapis
+	level, fileNumber, err := findSSTableNumber(key, cfg.NumberOfSSTables) // broj tabele u kojoj je zapis
 	if fileNumber == -1 && err == nil {
 		return nil, errors.New("key not found in any of sstables")
 	} else if err != nil {
 		return nil, err
 	}
 
-	lastKey, offset, err := loadAndFindIndexOffset(fileNumber, key)
+	lastKey, offset, err := loadAndFindIndexOffset(fileNumber, level, key)
 	if err != nil {
 		return nil, err
 	}
 
-	valueOffset, err := loadAndFindValueOffset(fileNumber, uint64(offset), key, lastKey)
+	valueOffset, err := loadAndFindValueOffset(fileNumber, level, uint64(offset), key, lastKey)
 	if err != nil {
 		return nil, err
 	}
 
-	record, err := loadRecord(fileNumber, key, uint64(valueOffset))
+	record, err := loadRecord(fileNumber, level, key, uint64(valueOffset))
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func Search(key string) (*record.Record, error) {
 }
 
 // trazimo SSTabelu gde gde je sa velikom verovatnocom nas zapis
-func findSSTableNumber(key string, numOfSSTables int) (int, error) {
+func findSSTableNumber(key string, numOfSSTables int) (int, int, error) {
 	var data [][]int
 	files, _ := os.ReadDir(config.SSTABLE_DIRECTORY)
 
@@ -256,18 +256,18 @@ func findSSTableNumber(key string, numOfSSTables int) (int, error) {
 		sst, err := LoadSSTable(data[i][0], data[i][1])
 
 		if err != nil {
-			return -1, err
+			return -1, -1, err
 		}
 
 		if sst.filter.CheckElement(key) {
-			return i, nil
+			return data[i][0], data[i][1], nil
 		}
 	}
-	return -1, nil
+	return -1, -1, nil
 }
 
-func loadAndFindIndexOffset(fileNumber int, key string) (string, int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(s.config.NumberOfSSTables) + ".db")
+func loadAndFindIndexOffset(fileNumber, level int, key string) (string, int64, error) {
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return "", -1, err
 	}
@@ -326,8 +326,8 @@ func loadAndFindIndexOffset(fileNumber int, key string) (string, int64, error) {
 	}
 }
 
-func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, lastKey string) (int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(s.config.NumberOfSSTables) + ".db")
+func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key string, lastKey string) (int64, error) {
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return -1, err
 	}
@@ -380,8 +380,8 @@ func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, la
 	return lastReadOffset, nil
 }
 
-func loadRecord(fileNumber int, key string, valueOffset uint64) (*record.Record, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + strconv.Itoa(fileNumber) + ".db")
+func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.Record, error) {
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return nil, err
 	}

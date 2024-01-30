@@ -7,6 +7,7 @@ import (
 	"main/bloom-filter"
 	"main/cache"
 	"main/config"
+	hll "main/hyperloglog"
 	"main/memtable"
 	"main/record"
 	"main/sstable"
@@ -154,7 +155,6 @@ func (e *Engine) BloomFilterOptions() {
 		case "1":
 			bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
 			value := bloomFilter.ToBytes()
-			fmt.Println(len(value))
 			key, _ := e.UserInput(false)
 			e.Put(key, value)
 		case "2":
@@ -210,6 +210,72 @@ func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
 		return key, []byte(value)
 	} else {
 		return key, nil
+	}
+}
+
+func (e *Engine) HLLMenu() {
+	fmt.Println("[1]	Create new instance")
+	fmt.Println("[2]	Delete already existing instance")
+	fmt.Println("[3]	Adding a new element into an instance")
+	fmt.Println("[4]	Provera kardiniliteta")
+	fmt.Println("[X]	EXIT")
+
+	for {
+		optionScanner := bufio.NewScanner(os.Stdin)
+		optionScanner.Scan()
+		option := optionScanner.Text()
+		if e.Tbucket.Take() {
+			switch option {
+			case "1":
+				fmt.Println("Choose name for you HyperLogLog: ")
+				//adding record with key which is name of hyperloglog and value is
+				//hyperloglog in binary
+				key, _ := e.UserInput(false)
+				hloglog := hll.NewHyperLogLog(4)
+				data := hloglog.ToBytes()
+				e.Put("hll_"+key, data)
+			case "2":
+				fmt.Println("Choose the name of HyperLogLog you want to delete: ")
+				key, _ := e.UserInput(false)
+				e.Delete(key)
+			case "3":
+				fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
+				key, _ := e.UserInput(false)
+				record := e.Get(key)
+				//hyperloglog not found
+				if record == nil {
+					fmt.Println("hyperloglog doesnt exist")
+					continue
+				}
+				data := record.Value
+				hloglog := hll.LoadingHLL(data)
+				//adding a key
+				fmt.Println("Choose the key you want to add: ")
+				key, _ = e.UserInput(false)
+				hloglog.AddElement(key)
+				e.Put(key, hloglog.ToBytes())
+			case "4":
+				fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
+				key, _ := e.UserInput(false)
+				record := e.Get(key)
+				//hyperloglog not found
+				if record == nil {
+					fmt.Println("hyperloglog doesnt exist")
+					continue
+				}
+				data := record.Value
+				hloglog := hll.LoadingHLL(data)
+				estimation := hloglog.Estimate()
+				fmt.Println("The estimation of unique element is: ", estimation)
+			case "X":
+				return
+			default:
+				fmt.Println("Invalid option!")
+			}
+		} else {
+			fmt.Println("Rate limit exceeded. Waiting...")
+			time.Sleep(time.Second)
+		}
 	}
 }
 
