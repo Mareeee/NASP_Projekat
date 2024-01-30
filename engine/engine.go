@@ -7,7 +7,6 @@ import (
 	"main/bloom-filter"
 	"main/cache"
 	"main/config"
-	"main/lsm"
 	"main/memtable"
 	"main/record"
 	"main/sstable"
@@ -69,7 +68,7 @@ func (e *Engine) Get(key string) *record.Record {
 		}
 		i = previous_index
 	}
-	for {
+	for j := 0; j < e.config.NumberOfMemtables; j++ {
 		//we haven't found a record with the given key
 		if e.all_memtables[i].CurrentSize == 0 {
 			break
@@ -87,7 +86,6 @@ func (e *Engine) Get(key string) *record.Record {
 			i = e.config.NumberOfMemtables - 1
 		}
 	}
-
 	//going through cache
 	record, found := e.Cache.Get(key)
 	//we found it in cache
@@ -155,7 +153,6 @@ func (e *Engine) BloomFilterOptions() {
 		case "1":
 			bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
 			value := bloomFilter.ToBytes()
-			fmt.Println(len(value))
 			key, _ := e.UserInput(false)
 			e.Put(key, value)
 		case "2":
@@ -236,10 +233,6 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
 			sstable.NewSSTable(all_records, &e.config, 1)
-			uradilo := lsm.Compact(&e.config, "sizeTiered")
-			if uradilo {
-				fmt.Println("Radi")
-			}
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
 	}
