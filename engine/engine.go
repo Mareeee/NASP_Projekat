@@ -16,6 +16,7 @@ import (
 	tokenbucket "main/tokenBucket"
 	"main/wal"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -216,13 +217,12 @@ func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
 }
 
 func (e *Engine) HLLMenu() {
-	fmt.Println("[1]	Create new instance")
-	fmt.Println("[2]	Delete already existing instance")
-	fmt.Println("[3]	Adding a new element into an instance")
-	fmt.Println("[4]	Provera kardiniliteta")
-	fmt.Println("[X]	EXIT")
-
 	for {
+		fmt.Println("[1]	Create new instance")
+		fmt.Println("[2]	Delete already existing instance")
+		fmt.Println("[3]	Adding a new element into an instance")
+		fmt.Println("[4]	Provera kardiniliteta")
+		fmt.Println("[X]	EXIT")
 		optionScanner := bufio.NewScanner(os.Stdin)
 		optionScanner.Scan()
 		option := optionScanner.Text()
@@ -304,53 +304,61 @@ func (e *Engine) CmsUsage() {
 	optionScanner := bufio.NewScanner(os.Stdin)
 	optionScanner.Scan()
 	option := optionScanner.Text()
-	switch option {
-	case "1":
-		fmt.Print("Input key: ")
-		keyScanner := bufio.NewScanner(os.Stdin)
-		keyScanner.Scan()
-		key := optionScanner.Text()
-		cms := new(cms.CountMinSketch)
-		cms.NewCountMinSketch(0.1, 0.1)
-		e.Put(key, cms.ToBytes())
+	if e.Tbucket.Take() {
+		switch option {
+		case "1":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			cms := new(cms.CountMinSketch)
+			cms.NewCountMinSketch(0.1, 0.1)
+			e.Put("cms_"+key, cms.ToBytes())
 
-	case "2":
-		fmt.Print("Input key: ")
-		keyScanner := bufio.NewScanner(os.Stdin)
-		keyScanner.Scan()
-		key := optionScanner.Text()
-		record := e.Get(key)
-		cms := cms.LoadCMS(record.Value)
-		fmt.Print("Input value: ")
-		valueScanner := bufio.NewScanner(os.Stdin)
-		valueScanner.Scan()
-		value := valueScanner.Text()
-		cms.AddElement(value)
-		e.Put(record.Key, cms.ToBytes())
+		case "2":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			record := e.Get(key)
+			if record != nil && strings.HasPrefix(key, "cms_") {
+				cms := *cms.LoadCMS(record.Value)
+				fmt.Print("Input value: ")
+				valueScanner := bufio.NewScanner(os.Stdin)
+				valueScanner.Scan()
+				value := valueScanner.Text()
+				cms.AddElement(value)
+				e.Put(record.Key, cms.ToBytes())
+			}
 
-	case "3":
-		fmt.Print("Input key: ")
-		keyScanner := bufio.NewScanner(os.Stdin)
-		keyScanner.Scan()
-		key := optionScanner.Text()
-		e.Delete(key)
-	case "4":
-		fmt.Print("Input key: ")
-		keyScanner := bufio.NewScanner(os.Stdin)
-		keyScanner.Scan()
-		key := optionScanner.Text()
-		record := e.Get(key)
-		cms := cms.LoadCMS(record.Value)
-		fmt.Print("Input value: ")
-		valueScanner := bufio.NewScanner(os.Stdin)
-		valueScanner.Scan()
-		value := valueScanner.Text()
-		fmt.Println(cms.NumberOfRepetitions(value))
-		e.Put(record.Key, cms.ToBytes())
+		case "3":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			e.Delete(key)
+		case "4":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			record := e.Get(key)
+			if record != nil && strings.HasPrefix(key, "cms_") {
+				cms := *cms.LoadCMS(record.Value)
+				fmt.Print("Input value: ")
+				valueScanner := bufio.NewScanner(os.Stdin)
+				valueScanner.Scan()
+				value := valueScanner.Text()
+				fmt.Println(cms.NumberOfRepetitions(value))
+				e.Put(record.Key, cms.ToBytes())
+			}
+		}
+	} else {
+		fmt.Println("Rate limit exceeded. Waiting...")
+		time.Sleep(time.Second)
 	}
 }
 
-// TODO: Dodati LSM kompakcije
 func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 	successful := e.all_memtables[e.active_memtable_index].Insert(recordToAdd)
 	if !successful {

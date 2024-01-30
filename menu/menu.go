@@ -48,7 +48,6 @@ func (m *Menu) Start() {
 					fmt.Println(err)
 				}
 			case "4":
-				// cms
 				engine.CmsUsage()
 			case "5":
 				engine.BloomFilterOptions()
