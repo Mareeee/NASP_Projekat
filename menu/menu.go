@@ -96,8 +96,8 @@ func hllMenu() {
 			engine.Delete(key)
 		case "3":
 			fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
-			key, _ := engine.UserInput(false)
-			record := engine.Get(key)
+			keyhll, _ := engine.UserInput(false)
+			record := engine.Get(keyhll)
 			//hyperloglog not found
 			if record == nil {
 				continue
@@ -106,8 +106,9 @@ func hllMenu() {
 			hloglog := hll.LoadingHLL(data)
 			//adding a key
 			fmt.Println("Choose the key you want to add: ")
-			key, _ = engine.UserInput(false)
+			key, _ := engine.UserInput(false)
 			hloglog.AddElement(key)
+			engine.Put(keyhll, hloglog.ToBytes())
 		case "4":
 			fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
 			key, _ := engine.UserInput(false)
