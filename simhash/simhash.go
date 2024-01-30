@@ -8,14 +8,54 @@ import (
 
 const HASH_SIZE = 64
 
+type SimHash struct {
+	fingerprint []int
+}
+
+func NewSimHash(text string) *SimHash {
+	simhash := new(SimHash)
+	simhash.fingerprint = calculateFingerprint(text)
+	return simhash
+}
+
+func LoadSimHash(data []byte) *SimHash {
+	simhash := new(SimHash)
+	simhash.fingerprint = loadFromBytes(data)
+	return simhash
+}
+
+func loadFromBytes(data []byte) []int {
+	fingerprint := make([]int, HASH_SIZE)
+
+	for i, b := range data {
+		for j := 0; j < 8; j++ {
+			fingerprint[i*8+j] = int((b >> (7 - j)) & 1)
+		}
+	}
+
+	return fingerprint
+}
+
+func (s *SimHash) toBytes() []byte {
+	byteSlice := make([]byte, HASH_SIZE/8)
+
+	for i := 0; i < HASH_SIZE; i++ {
+		byteSlice[i/8] |= byte(s.fingerprint[i]) << (7 - uint(i)%8)
+	}
+
+	return byteSlice
+}
+
 func removeSpecialCharacters(s string) string {
 	var result strings.Builder
+
 	for _, char := range s {
 		if strings.ContainsRune(".,?!;:-()\"+", char) { // rune vam je kao char u C i C++, mozemo dodati jos neke karaktere, ali mislim da nije potrebno
 			continue
 		}
 		result.WriteRune(char)
 	}
+
 	return result.String()
 }
 
@@ -35,6 +75,7 @@ func removeStopWords(text string) []string {
 	wordsSplitted := strings.Fields(text) // splitujemo teks, strings.fields splituje po whitespace karakterima
 
 	var cleanedWords []string
+
 	for _, word := range wordsSplitted {
 		if !stopWords[strings.ToLower(word)] { // Proveravamo da li je rec zaustavna
 			cleanedWords = append(cleanedWords, strings.ToLower(word))
@@ -57,26 +98,32 @@ func calculateWordWeights(text []string) map[string]int {
 
 func getHashAsString(data []byte) string {
 	hash := md5.Sum(data)
+
 	res := ""
+
 	for _, b := range hash {
 		res = fmt.Sprintf("%s%08b", res, b)
 	}
 	res = res[:64] // max 128
+
 	return res
 }
 
 // za svaku rec racuna hash
 func calculateWordHashes(wordWeights map[string]int) map[string][]int {
 	wordHashes := make(map[string][]int)
+
 	for key, _ := range wordWeights {
 		wordHashes[key] = convertZerosToMinusOnes(getHashAsString([]byte(key)))
 	}
+
 	return wordHashes
 }
 
 // formira tabelu i racuna vrednost tabele (sumiramo kolone, mnozeci tezine sa vrednoscu)
 func calculateTable(wordWeights map[string]int, wordHashes map[string][]int) []int {
 	var calculations []int
+
 	for i := 0; i < HASH_SIZE; i++ { // za svaku kolonu prolazimo kroz svaku rec
 		value := 0
 		for key, weight := range wordWeights {
@@ -84,6 +131,7 @@ func calculateTable(wordWeights map[string]int, wordHashes map[string][]int) []i
 		}
 		calculations = append(calculations, value)
 	}
+
 	return calculations
 }
 
@@ -95,6 +143,7 @@ func convertToZerosAndOnes(calculations []int) []int {
 			calculations[i] = 0
 		}
 	}
+
 	return calculations
 }
 
@@ -105,11 +154,13 @@ func calculateFingerprint(text string) []int {
 	wordHashes := calculateWordHashes(wordWeights) // saljemo mapu wordWeights, jer se u words-u mogu ponavljati reci
 	calculations := calculateTable(wordWeights, wordHashes)
 	fingerprint := convertToZerosAndOnes(calculations)
+
 	return fingerprint
 }
 
 func convertZerosToMinusOnes(data string) []int {
 	res := make([]int, HASH_SIZE)
+
 	for i, c := range data {
 		if c == 48 { // 48 je vrednost nule u ASCII tabeli
 			res[i] = -1
@@ -117,11 +168,13 @@ func convertZerosToMinusOnes(data string) []int {
 			res[i] = 1
 		}
 	}
+
 	return res
 }
 
 func xor(fingerprint1 []int, fingerprint2 []int) []int {
 	var xorArray []int
+
 	for i := 0; i < HASH_SIZE; i++ {
 		if fingerprint1[i] == fingerprint2[i] {
 			xorArray = append(xorArray, 0)
@@ -129,23 +182,22 @@ func xor(fingerprint1 []int, fingerprint2 []int) []int {
 			xorArray = append(xorArray, 1)
 		}
 	}
+
 	return xorArray
 }
 
 func countOnes(xorArray []int) int {
 	ones := 0
+
 	for _, v := range xorArray {
 		if v == 1 {
 			ones++
 		}
 	}
+
 	return ones
 }
 
-// vraca broj jedinica koji predstavlja hemingovu udaljenost (vece => manje poklapanje | manje => vece poklapanje)
-func HammingDistance(text1 string, text2 string) int {
-	text1Fingerprint := calculateFingerprint(text1)
-	text2Fingerprint := calculateFingerprint(text2)
-	xor := xor(text1Fingerprint, text2Fingerprint)
-	return countOnes(xor)
+func HammingDistance(fingerprint1 []int, fingerprint2 []int) int {
+	return countOnes(xor(fingerprint1, fingerprint2))
 }
