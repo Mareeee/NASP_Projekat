@@ -6,14 +6,14 @@
   "SegmentSize": 2048,
   "LastSegmentSize": 1977,
   "MaxHeight": 5,
-  "NumberOfSSTables": 3,
+  "NumberOfSSTables": 0,
   "IndexInterval": 2,
   "SummaryInterval": 2,
   "Capacity": 10,
   "Rate": 2,
   "M": 3,
-  "MaxSize": 9,
-  "MemtableStructure": "btree",
+  "MaxSize": 1,
+  "MemtableStructure": "skiplist",
   "NumberOfMemtables": 2,
   "CacheMaxSize": 3
 }

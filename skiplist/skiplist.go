@@ -8,13 +8,13 @@ import (
 )
 
 type Node struct {
-	Record record.Record
+	Record *record.Record
 	next   []*Node
 }
 
 func newNode(record record.Record, level int) *Node {
 	return &Node{
-		Record: record,
+		Record: &record,
 		next:   make([]*Node, level+1),
 	}
 }
@@ -90,7 +90,7 @@ func (sl *SkipList) GetRecords() []record.Record {
 	current := sl.head.next[0]
 
 	for current != nil {
-		elements = append(elements, current.Record)
+		elements = append(elements, *current.Record)
 		current = current.next[0]
 	}
 

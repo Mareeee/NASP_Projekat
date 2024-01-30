@@ -8,12 +8,7 @@ import (
 const (
 	ALL_CONFIG_FILE_PATH       = "config/config.json"
 	SEGMENT_FILE_PATH          = "data/wal/wal_"
-	SSTABLE_DIRECTORY          = "data/sstable"
-	DATA_FILE_PATH             = "data/sstable/"
-	INDEX_FILE_PATH            = "data/sstable/sstable_index_"
-	SUMMARY_FILE_PATH          = "data/sstable/sstable_summary_"
-	FILTER_FILE_PATH           = "data/sstable/sstable_filter_"
-	METADATA_FILE_PATH         = "data/sstable/sstable_metadata_"
+	SSTABLE_DIRECTORY          = "data/sstable/"
 	TOKENBUCKET_STATE          = "data/token_bucket/token_bucket_state.bin"
 	CMS_FILE_PATH              = "data/cms/cms.bin"
 	HLL_FILE_PATH              = "data/hll/hll.bin"
