@@ -18,7 +18,7 @@ import (
 type SSTable struct {
 	filter   *bloom.BloomFilter
 	metadata *merkle.MerkleTree
-	config   config.Config
+	config   *config.Config
 }
 
 type IndexEntry struct {
@@ -69,17 +69,16 @@ func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
 	return sst, nil
 }
 
-func NewSSTable(allRecords []record.Record, config config.Config, level int) (*SSTable, error) {
+func NewSSTable(allRecords []record.Record, config *config.Config, level int) (*SSTable, error) {
 	sst := new(SSTable)
+	config.NumberOfSSTables++
 	sst.config = config
-
-	sst.config.NumberOfSSTables++
 
 	sst.writeDataIndexSummary(allRecords, level)
 	sst.createFilter(allRecords, level)
 	sst.createMetaData(allRecords, level)
 
-	err := sst.config.WriteConfig()
+	err := config.WriteConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +96,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 		// ovde se pravi data, upisujem sve rekorde
 		s.WriteRecord(record, config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.config.NumberOfSSTables)+".db")
 
-		if count%s.config.IndexInterval == 0 {
+		if count%config.CONFIG_INDEX_INTERVAL == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
 		}
 		count++
@@ -144,8 +143,8 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 
 	offset := 0
 
-	for i := 0; i < len(index); i += s.config.SummaryInterval {
-		endIndex := i + s.config.SummaryInterval - 1
+	for i := 0; i < len(index); i += config.CONFIG_SUMMARY_INTERVAL {
+		endIndex := i + config.CONFIG_SUMMARY_INTERVAL - 1
 
 		if endIndex >= len(index) {
 			endIndex = len(index) - 1

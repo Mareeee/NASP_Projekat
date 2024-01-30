@@ -49,12 +49,14 @@ func (m *Menu) Start() {
 				}
 			case "4":
 				// cms
+				engine.CmsUsage()
 			case "5":
 				engine.BloomFilterOptions()
 			case "6":
 				fmt.Println("Rad sa HyperLogLog-om: ")
 				engine.HLLMenu()
 			case "X":
+			case "x":
 				os.Exit(0)
 			default:
 				fmt.Println("Invalid option!")
