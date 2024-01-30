@@ -1,27 +1,27 @@
 package cache
 
 import (
+	"main/config"
 	"main/record"
 )
 
 // Struktura koja reprezentuje kes
 type Cache struct {
-	data    map[string]record.Record
-	maxSize int
+	data   map[string]record.Record
+	config config.Config
 }
 
 // Kreiranje novog kesa
-func NewCache(maxSize int) *Cache {
+func NewCache(config config.Config) *Cache {
 	return &Cache{
-		data:    make(map[string]record.Record),
-		maxSize: maxSize,
+		data: make(map[string]record.Record),
 	}
 }
 
 // Dodavanje novog para kljuc-vrednost u kes
 func (c *Cache) Set(key string, record record.Record) {
 	// Proverava se da li je pun kes
-	if len(c.data) >= c.maxSize {
+	if len(c.data) >= c.config.CacheMaxSize {
 		// Uklanjanje najredje upotrebljivanog(prvi u mapi)
 		for k := range c.data {
 			delete(c.data, k)
