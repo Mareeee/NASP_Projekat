@@ -10,9 +10,7 @@ import (
 	"strings"
 )
 
-func SizeTiered() {
-	cfg := new(config.Config)
-	config.LoadConfig(cfg)
+func SizeTiered(cfg config.Config) {
 
 	var currentLevelSSTables []string
 	// prolazak kroz nivoe sstabela

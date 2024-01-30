@@ -50,7 +50,7 @@ func (m *Menu) Start() {
 			case "4":
 				// cms
 			case "5":
-				// bf
+				engine.BloomFilterOptions()
 			case "6":
 				// hll
 			case "X":
