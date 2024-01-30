@@ -110,8 +110,8 @@ func (e *Engine) Delete(key string) error {
 	}
 
 	e.Wal.AddRecord(record.Key, record.Value, true)
-	e.AddRecordToMemtable(*record)
 	index := e.active_memtable_index
+	deletedInMemtable := false
 	for i := 0; i < e.config.NumberOfMemtables; i++ {
 		if e.all_memtables[index].CurrentSize == 0 {
 			break
@@ -120,9 +120,17 @@ func (e *Engine) Delete(key string) error {
 		found := e.all_memtables[index].Search(record.Key)
 		if found != nil {
 			e.all_memtables[index].Delete(*record)
+			deletedInMemtable = true
 			break
 		}
 		index = (index - 1) % e.config.NumberOfMemtables
+	}
+
+	if !deletedInMemtable {
+		record.Tombstone = true
+		e.all_memtables[e.active_memtable_index].Insert(*record)
+		e.Cache.Set(key, *record)
+		return nil
 	}
 
 	e.Cache.Set(key, *record)
@@ -130,7 +138,6 @@ func (e *Engine) Delete(key string) error {
 }
 
 func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
-
 	fmt.Print("Input key: ")
 	keyScanner := bufio.NewScanner(os.Stdin)
 	keyScanner.Scan()
@@ -145,6 +152,7 @@ func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
 		return key, nil
 	}
 }
+
 func (e *Engine) recover() error {
 	all_records, err := e.Wal.LoadAllRecords()
 	if err != nil {

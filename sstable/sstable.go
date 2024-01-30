@@ -267,7 +267,7 @@ func findSSTableNumber(key string, numOfSSTables int) (int, error) {
 }
 
 func loadAndFindIndexOffset(fileNumber int, key string) (string, int64, error) {
-	f, err := os.Open(config.SUMMARY_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(s.config.NumberOfSSTables) + ".db")
 	if err != nil {
 		return "", -1, err
 	}
@@ -327,7 +327,7 @@ func loadAndFindIndexOffset(fileNumber int, key string) (string, int64, error) {
 }
 
 func loadAndFindValueOffset(fileNumber int, summaryOffset uint64, key string, lastKey string) (int64, error) {
-	f, err := os.Open(config.INDEX_FILE_PATH + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(s.config.NumberOfSSTables) + ".db")
 	if err != nil {
 		return -1, err
 	}

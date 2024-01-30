@@ -25,9 +25,8 @@ func SizeTiered() {
 				records2 := currentLevelSSTables[i+1]
 				resultRecords := mergeTables(records1, records2, level+1)
 
-				sstable.NewSSTable(resultRecords, *cfg, level+1)
-
 				deleteOldTables(records1, records2, level)
+				sstable.NewSSTable(resultRecords, *cfg, level+1)
 			}
 		}
 	}
@@ -38,10 +37,12 @@ func deleteOldTables(records1, records2 string, level int) {
 	sstableIndex2 := strings.Split(strings.Split(records2, "_")[4], ".")[0]
 	listTables := []string{sstableIndex1, sstableIndex2}
 	for i := 0; i <= 1; i++ {
-		os.Remove("lvl_" + strconv.Itoa(level) + "_sstable_data_" + listTables[i] + ".db")
-		os.Remove("_sstable_filter_" + listTables[i] + ".bin")
-		os.Remove("_sstable_index_" + listTables[i] + ".db")
-		os.Remove("_sstable_summary_" + listTables[i] + ".db")
+		prefix := "lvl_" + strconv.Itoa(level)
+		os.Remove(prefix + "_sstable_data_" + listTables[i] + ".db")
+		os.Remove(prefix + "_sstable_filter_" + listTables[i] + ".bin")
+		os.Remove(prefix + "_sstable_index_" + listTables[i] + ".db")
+		os.Remove(prefix + "_sstable_summary_" + listTables[i] + ".db")
+		os.Remove(prefix + "_metadata_" + listTables[i] + ".bin")
 	}
 }
 
