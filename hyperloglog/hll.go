@@ -24,10 +24,12 @@ type HLL struct {
 	reg []uint8
 }
 
-func (hll *HLL) NewHyperLogLog(p uint8) {
+func NewHyperLogLog(p uint8) *HLL {
+	hll := new(HLL)
 	hll.p = p
 	hll.m = uint64(math.Pow(float64(2), float64(hll.p)))
 	hll.reg = make([]uint8, hll.m)
+	return hll
 }
 
 func (hll *HLL) AddElement(key string) {
@@ -69,7 +71,7 @@ func (hll *HLL) emptyCount() int {
 	return sum
 }
 
-func (hll *HLL) toBytes() []byte {
+func (hll *HLL) ToBytes() []byte {
 	bufferSize := 9 + len(hll.reg)
 	fmt.Println(bufferSize)
 	buffer := make([]byte, bufferSize)
@@ -84,7 +86,7 @@ func (hll *HLL) toBytes() []byte {
 }
 
 func (hll *HLL) WriteToBinFile() error {
-	data := hll.toBytes()
+	data := hll.ToBytes()
 
 	f, err := os.OpenFile(config.HLL_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -130,6 +132,25 @@ func (hll *HLL) LoadHLL() error {
 	}
 
 	return nil
+}
+
+func LoadingHLL(data []byte) *HLL {
+	hll := new(HLL)
+	hll.m = binary.BigEndian.Uint64(data[0:8])
+
+	for _, b := range data[8:9] {
+		hll.p = (hll.p << 1) | uint8(b) // posto ne postoji binary.BigEndian.Uint8, shift-ovali smo vrednost za 1 bajt u levo
+	}
+
+	offSet := 9
+	hll.reg = make([]uint8, hll.m)
+	for i := 0; i < int(hll.m); i++ {
+		for _, b := range data[offSet : offSet+1] {
+			hll.reg[i] = (hll.reg[i] << 1) | uint8(b) // posto ne postoji binary.BigEndian.Uint8, shift-ovali smo vrednost za 1 bajt u levo i dodelili vrednost niza
+		}
+		offSet += 1
+	}
+	return hll
 }
 
 func Hash(data []byte) uint64 {
