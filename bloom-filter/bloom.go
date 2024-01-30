@@ -12,6 +12,15 @@ type BloomFilter struct {
 	hf  []HashWithSeed // niz hash funkcija
 }
 
+func NewBloomFilterMenu(expectedElements int, falsePositiveRate float64) *BloomFilter {
+	bf := new(BloomFilter)
+	bf.m = CalculateM(expectedElements, falsePositiveRate)
+	bf.k = CalculateK(expectedElements, bf.m)
+	bf.hf = CreateHashFunctions(bf.k)
+	bf.arr = make([]byte, bf.m)
+	return bf
+}
+
 func (bf *BloomFilter) NewBloomFilter(expectedElements int, falsePositiveRate float64) {
 	bf.m = CalculateM(expectedElements, falsePositiveRate)
 	bf.k = CalculateK(expectedElements, bf.m)
@@ -44,7 +53,7 @@ func (bf *BloomFilter) hfLength() int {
 	return len(bf.hf) * 32
 }
 
-func (bf *BloomFilter) toBytes() []byte {
+func (bf *BloomFilter) ToBytes() []byte {
 	bufferSize := 8 + len(bf.arr) + bf.hfLength()
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint32(buffer[0:4], bf.m)
@@ -58,8 +67,23 @@ func (bf *BloomFilter) toBytes() []byte {
 	return buffer
 }
 
+func FromBytes(data []byte) *BloomFilter {
+	bf := new(BloomFilter)
+
+	bf.m = binary.BigEndian.Uint32(data[0:4])
+	bf.arr = data[4 : bf.m+4]
+	bf.k = binary.BigEndian.Uint32(data[bf.m+4 : bf.m+8])
+	offSet := bf.m + 8
+	bf.hf = make([]HashWithSeed, bf.k)
+	for i := 0; i < int(bf.k); i++ {
+		bf.hf[i] = HashWithSeed{Seed: data[offSet : offSet+32]}
+		offSet += 32
+	}
+	return bf
+}
+
 func (bf *BloomFilter) WriteToBinFile(filepath string) {
-	data := bf.toBytes()
+	data := bf.ToBytes()
 
 	f, _ := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()

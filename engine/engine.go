@@ -4,14 +4,17 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"main/bloom-filter"
 	"main/cache"
 	"main/config"
+	"main/lsm"
 	"main/memtable"
 	"main/record"
 	"main/sstable"
 	tokenbucket "main/tokenBucket"
 	"main/wal"
 	"os"
+	"time"
 )
 
 type Engine struct {
@@ -137,11 +140,69 @@ func (e *Engine) Delete(key string) error {
 	return nil
 }
 
+func (e *Engine) BloomFilterOptions() {
+	fmt.Println("\n[1]	Create new instance")
+	fmt.Println("[2]	Delete instance")
+	fmt.Println("[3]	Add element")
+	fmt.Println("[4]	Search element")
+
+	optionScanner := bufio.NewScanner(os.Stdin)
+	optionScanner.Scan()
+	option := optionScanner.Text()
+
+	if e.Tbucket.Take() {
+		switch option {
+		case "1":
+			bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
+			value := bloomFilter.ToBytes()
+			fmt.Println(len(value))
+			key, _ := e.UserInput(false)
+			e.Put(key, value)
+		case "2":
+			key, _ := e.UserInput(false)
+			e.Delete(key)
+		case "3":
+			fmt.Println("Enter instance of bloomfilter: ")
+			key_bf, _ := e.UserInput(false)
+			bloom_record := e.Get(key_bf)
+			if bloom_record != nil {
+				fmt.Println("Enter element: ")
+				key, _ := e.UserInput(false)
+				bloomFilter := *bloom.FromBytes(bloom_record.Value)
+				bloomFilter.AddElement(key)
+				value := bloomFilter.ToBytes()
+				e.Put(key, value)
+			}
+		case "4":
+			fmt.Println("Enter instance of bloomfilter: ")
+			key_bf, _ := e.UserInput(false)
+			bloom_record := e.Get(key_bf)
+			if bloom_record != nil {
+				fmt.Println("Enter element: ")
+				key, _ := e.UserInput(false)
+				bloomFilter := *bloom.FromBytes(bloom_record.Value)
+				fmt.Println(bloomFilter.CheckElement(key))
+				value := bloomFilter.ToBytes()
+				e.Put(key, value)
+			}
+		default:
+			fmt.Println("Invalid option!")
+		}
+	} else {
+		fmt.Println("Rate limit exceeded. Waiting...")
+		time.Sleep(time.Second)
+	}
+}
+
 func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
 	fmt.Print("Input key: ")
 	keyScanner := bufio.NewScanner(os.Stdin)
 	keyScanner.Scan()
 	key := keyScanner.Text()
+	if key == "" {
+		fmt.Println("invalid key")
+		return "", nil
+	}
 	if inputValueAlso {
 		fmt.Print("Input value: ")
 		valueScanner := bufio.NewScanner(os.Stdin)
@@ -174,7 +235,11 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 
 		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
-			sstable.NewSSTable(all_records, e.config, 1)
+			sstable.NewSSTable(all_records, &e.config, 1)
+			uradilo := lsm.Compact(&e.config, "sizeTiered")
+			if uradilo {
+				fmt.Println("Radi")
+			}
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
 	}
