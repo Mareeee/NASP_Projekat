@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"main/cache"
 	"main/config"
+	"main/lsm"
 	"main/memtable"
 	"main/record"
 	"main/sstable"
@@ -174,7 +175,11 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 
 		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
-			sstable.NewSSTable(all_records, e.config, 1)
+			sstable.NewSSTable(all_records, &e.config, 1)
+			uradilo := lsm.Compact(&e.config, "sizeTiered")
+			if uradilo {
+				fmt.Println("Radi")
+			}
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
 	}

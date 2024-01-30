@@ -10,23 +10,30 @@ import (
 	"strings"
 )
 
-func SizeTiered() {
-	cfg := new(config.Config)
-	config.LoadConfig(cfg)
+func Compact(config *config.Config, compactType string) bool {
+	numberOfSSTablesLvl1 := len(findSSTable("1"))
+	if numberOfSSTablesLvl1 >= config.MaxTabels {
+		SizeTiered(config)
+		return true
+	}
+	return false
+}
 
+func SizeTiered(config *config.Config) {
 	var currentLevelSSTables []string
 	// prolazak kroz nivoe sstabela
-	for level := 1; level <= cfg.NumberOfLevels; level++ {
+	for level := 1; level <= config.NumberOfLevels; level++ {
 		currentLevelSSTables = findSSTable(strconv.Itoa(level))
 		// radimo kompakciju pod uslovom da je broj sstabela na nivou dostigao limit
-		if len(currentLevelSSTables) >= cfg.MaxTabels && len(currentLevelSSTables)%2 == 0 {
+		if len(currentLevelSSTables) >= config.MaxTabels && len(currentLevelSSTables)%2 == 0 {
 			for i := 0; i < len(currentLevelSSTables); i += 2 {
 				records1 := currentLevelSSTables[i]
 				records2 := currentLevelSSTables[i+1]
 				resultRecords := mergeTables(records1, records2, level+1)
 
 				deleteOldTables(records1, records2, level)
-				sstable.NewSSTable(resultRecords, *cfg, level+1)
+				config.NumberOfSSTables -= 2
+				sstable.NewSSTable(resultRecords, config, level+1)
 			}
 		}
 	}
@@ -37,12 +44,12 @@ func deleteOldTables(records1, records2 string, level int) {
 	sstableIndex2 := strings.Split(strings.Split(records2, "_")[4], ".")[0]
 	listTables := []string{sstableIndex1, sstableIndex2}
 	for i := 0; i <= 1; i++ {
-		prefix := "lvl_" + strconv.Itoa(level)
+		prefix := config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level)
 		os.Remove(prefix + "_sstable_data_" + listTables[i] + ".db")
 		os.Remove(prefix + "_sstable_filter_" + listTables[i] + ".bin")
 		os.Remove(prefix + "_sstable_index_" + listTables[i] + ".db")
 		os.Remove(prefix + "_sstable_summary_" + listTables[i] + ".db")
-		os.Remove(prefix + "_metadata_" + listTables[i] + ".bin")
+		os.Remove(prefix + "_sstable_metadata_" + listTables[i] + ".bin")
 	}
 }
 

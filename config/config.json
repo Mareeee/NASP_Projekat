@@ -1,10 +1,10 @@
 {
   "NumberOfLevels": 2,
   "MaxTables": 2,
-  "NumberOfSegments": 2,
+  "NumberOfSegments": 1,
   "LowWaterMark": 0,
   "SegmentSize": 128,
-  "LastSegmentSize": 29,
+  "LastSegmentSize": 0,
   "MaxHeight": 5,
   "NumberOfSSTables": 0,
   "IndexInterval": 2,
