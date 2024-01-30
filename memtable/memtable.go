@@ -41,8 +41,8 @@ func LoadAllMemtables(config config.Config) *[]Memtable {
 func (mt *Memtable) Search(key string) *record.Record {
 	var record *record.Record
 	if mt.config.MemtableStructure == "skiplist" {
-		node, _ := mt.skiplist.Search(key)
-		if node != nil {
+		node, found := mt.skiplist.Search(key)
+		if found {
 			record = &node.Record
 		} else {
 			record = nil
