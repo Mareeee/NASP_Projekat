@@ -16,9 +16,9 @@ import (
 
 type Engine struct {
 	config                config.Config
-	cache                 cache.Cache
-	wal                   wal.Wal
-	tbucket               tokenbucket.TokenBucket
+	Cache                 cache.Cache
+	Wal                   wal.Wal
+	Tbucket               tokenbucket.TokenBucket
 	all_memtables         []memtable.Memtable
 	active_memtable_index int
 }
@@ -31,10 +31,10 @@ func (e *Engine) Engine() {
 	}
 
 	// posto lsm nije struktura, zvacemo ga iz package-a
-	e.cache = *cache.NewCache(e.config.MaxSize)
+	e.Cache = *cache.NewCache(e.config)
 	wal, _ := wal.LoadWal(e.config)
-	e.wal = *wal
-	e.tbucket = *tokenbucket.LoadTokenBucket(e.config)
+	e.Wal = *wal
+	e.Tbucket = *tokenbucket.LoadTokenBucket(e.config)
 	e.all_memtables = *memtable.LoadAllMemtables(e.config)
 	e.active_memtable_index = 0
 
@@ -43,13 +43,13 @@ func (e *Engine) Engine() {
 }
 
 func (e *Engine) Put(key string, value []byte) error {
-	err := e.wal.AddRecord(key, value, false)
+	err := e.Wal.AddRecord(key, value, false)
 	if err != nil {
 		return errors.New("failed wal insert")
 	}
 	recordToAdd := record.NewRecord(key, value, false)
 	e.AddRecordToMemtable(*recordToAdd)
-	e.cache.Set(key, *recordToAdd)
+	e.Cache.Set(key, *recordToAdd)
 	return nil
 }
 
@@ -86,7 +86,7 @@ func (e *Engine) Get(key string) *record.Record {
 	}
 
 	//going through cache
-	record, found := e.cache.Get(key)
+	record, found := e.Cache.Get(key)
 	//we found it in cache
 	if found && !record.Tombstone {
 		return record
@@ -109,7 +109,7 @@ func (e *Engine) Delete(key string) error {
 		return errors.New("record not found or unable to be deleted")
 	}
 
-	e.wal.AddRecord(record.Key, record.Value, true)
+	e.Wal.AddRecord(record.Key, record.Value, true)
 	e.AddRecordToMemtable(*record)
 	index := e.active_memtable_index
 	for i := 0; i < e.config.NumberOfMemtables; i++ {
@@ -125,7 +125,7 @@ func (e *Engine) Delete(key string) error {
 		index = (index - 1) % e.config.NumberOfMemtables
 	}
 
-	e.cache.Set(key, *record)
+	e.Cache.Set(key, *record)
 	return nil
 }
 
@@ -146,7 +146,7 @@ func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
 	}
 }
 func (e *Engine) recover() error {
-	all_records, err := e.wal.LoadAllRecords()
+	all_records, err := e.Wal.LoadAllRecords()
 	if err != nil {
 		return err
 	}
