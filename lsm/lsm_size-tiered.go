@@ -25,7 +25,7 @@ func SizeTiered() {
 				records2 := currentLevelSSTables[i+1]
 				resultRecords := mergeTables(records1, records2, level+1)
 
-				sstable.NewSSTable(resultRecords, level+1)
+				sstable.NewSSTable(resultRecords, *cfg, level+1)
 
 				deleteOldTables(records1, records2, level)
 			}

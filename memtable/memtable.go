@@ -43,7 +43,7 @@ func (mt *Memtable) Search(key string) *record.Record {
 	if mt.config.MemtableStructure == "skiplist" {
 		node, found := mt.skiplist.Search(key)
 		if found {
-			record = &node.Record
+			record = node.Record
 		} else {
 			record = nil
 		}
@@ -113,14 +113,12 @@ func (mt *Memtable) PrintMemtableRecords() {
 func (mt *Memtable) Flush() []record.Record {
 	var elements []record.Record
 	mt.CurrentSize = 0
-	mt.skiplist = nil
-	mt.bTree = nil
 	if mt.config.MemtableStructure == "skiplist" {
-		mt.skiplist = skiplist.NewSkipList()
 		elements = mt.skiplist.GetRecords()
+		mt.skiplist = skiplist.NewSkipList()
 	} else if mt.config.MemtableStructure == "btree" {
-		mt.bTree = btree.NewBTree()
 		elements = mt.bTree.ValuesInOrderTraversal()
+		mt.bTree = btree.NewBTree()
 	}
 	return elements
 }
