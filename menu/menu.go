@@ -50,11 +50,10 @@ func (m *Menu) Start() {
 					fmt.Println(err)
 				}
 			case "4":
-				// cms
+				m.engine.CmsUsage()
 			case "5":
 				m.BloomFilterOptions()
 			case "6":
-				// hll
 				fmt.Println("Rad sa HyperLogLog-om: ")
 				hllMenu()
 			case "7":
