@@ -318,6 +318,7 @@ func getPath(numberOfSegment int) string {
 
 func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 	walsToDelete := int(math.Floor(float64(SizeOfRecordsInWal) / float64(w.config.SegmentSize)))
+	fmt.Println(walsToDelete)
 	remainingBytesToTruncate := SizeOfRecordsInWal - int(walsToDelete)*w.config.SegmentSize
 	// slucaj ako brisemo ceo wal
 	if walsToDelete+1 == w.config.NumberOfSegments && remainingBytesToTruncate == w.config.LastSegmentSize {
@@ -335,13 +336,15 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 
 		// shiftovanje byteova na pocetak trenutnog filea
 		remainingFileData := w.getSegmentSize(i) - remainingBytesToTruncate
+		fmt.Println(remainingBytesToTruncate)
 
 		f.Seek(int64(remainingBytesToTruncate), 0)
 
+		fmt.Println(remainingFileData)
 		data := make([]byte, remainingFileData)
 		_, err = f.Read(data)
 		if err != nil {
-			fmt.Println("Error reading file:", err)
+			fmt.Println("Error reading file:  1", err)
 			continue
 		}
 
@@ -360,7 +363,7 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 			data2 = make([]byte, w.config.LastSegmentSize)
 			_, err = f2.Read(data2)
 			if err != nil {
-				fmt.Println("Error reading file:", err)
+				fmt.Println("Error reading file:  2", err)
 				continue
 			}
 
@@ -378,7 +381,7 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 			data2 = make([]byte, remainingBytesToTruncate)
 			_, err = f2.Read(data2)
 			if err != nil {
-				fmt.Println("Error reading file:", err)
+				fmt.Println("Error reading file:  3", err)
 				continue
 			}
 
@@ -388,7 +391,7 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 				data3 := make([]byte, w.config.LastSegmentSize-remainingBytesToTruncate)
 				_, err = f2.Read(data3)
 				if err != nil {
-					fmt.Println("Error reading file:", err)
+					fmt.Println("Error reading file:  4", err)
 					continue
 				}
 

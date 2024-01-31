@@ -282,8 +282,9 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 		e.active_memtable_index = (e.active_memtable_index + 1) % e.config.NumberOfMemtables
 
 		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
+			memSize := e.all_memtables[e.active_memtable_index].SizeOfRecordsInWal
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
-			e.Wal.DeleteWalSegmentsEngine(e.all_memtables[e.active_memtable_index].SizeOfRecordsInWal)
+			e.Wal.DeleteWalSegmentsEngine(memSize)
 			sstable.NewSSTable(all_records, &e.config, 1)
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
