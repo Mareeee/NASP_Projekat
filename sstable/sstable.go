@@ -86,6 +86,100 @@ func NewSSTable(allRecords []record.Record, config *config.Config, level int) (*
 	return sst, nil
 }
 
+func WriteDataIndexSummaryLSM(path string, level int) {
+	dataFile, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer dataFile.Close()
+
+	sstableIndex := strings.Split(strings.Split(path, "_")[4], ".")[0]
+	prefix := config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level)
+
+	indexFile, err := os.OpenFile(prefix+"_sstable_index_"+sstableIndex+".db", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer indexFile.Close()
+
+	summaryFile, err := os.OpenFile(prefix+"_sstable_summary_"+sstableIndex+".db", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer summaryFile.Close()
+
+	filterFile, err := os.OpenFile(prefix+"_sstable_filter_"+sstableIndex+".bin", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer filterFile.Close()
+
+	count := 0
+	indexOffset := 0
+	var index []IndexEntry
+	var allRecordsBytes [][]byte
+
+	for {
+		record, err := record.LoadRecordFromFile(*dataFile)
+		if err != nil {
+			break // procitali smo sve rekorde
+		}
+
+		if count%config.CONFIG_INDEX_INTERVAL == 0 {
+			index = append(index, IndexEntry{key: record.Key, offset: int64(indexOffset)})
+			keyBytes := []byte(record.Key)
+
+			binary.Write(indexFile, binary.BigEndian, int64(len(keyBytes)))
+			indexFile.Write(keyBytes)
+			binary.Write(indexFile, binary.BigEndian, int64(indexOffset))
+
+		}
+		count++
+		indexOffset += len(record.ToBytes())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+	}
+
+	mt := merkle.NewMerkleTree(allRecordsBytes)
+	mt.WriteToBinFile(prefix + "_sstable_metadata_" + sstableIndex + ".bin")
+
+	summaryOffset := 0
+
+	for i := 0; i < len(index); i += config.CONFIG_SUMMARY_INTERVAL {
+		endIndex := i + config.CONFIG_SUMMARY_INTERVAL - 1
+
+		if endIndex >= len(index) {
+			endIndex = len(index) - 1
+		}
+
+		firstKeyBytes := []byte(index[i].key)
+		lastKeyBytes := []byte(index[endIndex].key)
+
+		binary.Write(summaryFile, binary.BigEndian, int64(len(firstKeyBytes)))
+		summaryFile.Write(firstKeyBytes)
+
+		binary.Write(summaryFile, binary.BigEndian, int64(len(lastKeyBytes)))
+		summaryFile.Write(lastKeyBytes)
+
+		binary.Write(summaryFile, binary.BigEndian, int64(summaryOffset))
+
+		summaryOffset = 16 + len([]byte(index[i].key))
+	}
+
+	bf := new(bloom.BloomFilter)
+	bf.NewBloomFilter(count, 0.01)
+
+	for {
+		record, err := record.LoadRecordFromFile(*dataFile)
+		if err != nil {
+			break // procitali smo sve rekorde
+		}
+		bf.AddElement(record.Key)
+	}
+
+	filterFile.Write(bf.ToBytes())
+
+}
+
 func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 	count := 0
 	offset := 0
@@ -96,7 +190,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 		// ovde se pravi data, upisujem sve rekorde
 		s.WriteRecord(record, config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.config.NumberOfSSTables)+".db")
 
-		if count%config.CONFIG_INDEX_INTERVAL == 0 {
+		if count%s.config.IndexInterval == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
 		}
 		count++
@@ -143,8 +237,8 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 
 	offset := 0
 
-	for i := 0; i < len(index); i += config.CONFIG_SUMMARY_INTERVAL {
-		endIndex := i + config.CONFIG_SUMMARY_INTERVAL - 1
+	for i := 0; i < len(index); i += s.config.SummaryInterval {
+		endIndex := i + s.config.SummaryInterval - 1
 
 		if endIndex >= len(index) {
 			endIndex = len(index) - 1
@@ -180,6 +274,7 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
 			fmt.Println("Error writing first key size:", err)
 			return
 		}
+
 		_, err = f.Write(firstKeyBytes)
 		if err != nil {
 			fmt.Println("Error writing first key:", err)
@@ -266,7 +361,7 @@ func findSSTableNumber(key string, numOfSSTables int) (int, int, error) {
 }
 
 func loadAndFindIndexOffset(fileNumber, level int, key string) (string, int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return "", -1, err
 	}
@@ -326,7 +421,7 @@ func loadAndFindIndexOffset(fileNumber, level int, key string) (string, int64, e
 }
 
 func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key string, lastKey string) (int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return -1, err
 	}

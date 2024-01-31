@@ -29,12 +29,17 @@ const (
 	CONFIG_MEMTABLE_STRUCTURE  = "skiplist"
 	CONFIG_NUMBER_OF_MEMTABLES = 2
 	CONFIG_CACHE_MAX_SIZE      = 3
+	CONFIG_COMPACT_BY          = "byte"
+	CONFIG_MAX_BYTES_SSTABLES  = 128
 )
 
 type Config struct {
 	// lsm
-	NumberOfLevels int `json:"NumberOfLevels"`
-	MaxTabels      int `json:"MaxTables"`
+	NumberOfLevels   int    `json:"NumberOfLevels"`
+	MaxTabels        int    `json:"MaxTables"`
+	CompactBy        string `json:"CompactBy"`
+	MaxBytesSSTables int    `json:"MaxBytesSSTables"`
+
 	// wal
 	NumberOfSegments int `json:"NumberOfSegments"`
 	SegmentSize      int `json:"SegmentSize"`
@@ -119,6 +124,14 @@ func (cfg *Config) checkValidity() {
 	if cfg.CacheMaxSize < 0 {
 		cfg.CacheMaxSize = CONFIG_CACHE_MAX_SIZE
 	}
+
+	if cfg.CompactBy != "byte" && cfg.CompactBy != "amount" {
+		cfg.CompactBy = CONFIG_COMPACT_BY
+	}
+
+	if cfg.MaxBytesSSTables < 0 {
+		cfg.MaxBytesSSTables = CONFIG_MAX_BYTES_SSTABLES
+	}
 }
 
 func LoadConfig(cfg *Config) error {
@@ -140,6 +153,8 @@ func LoadConfig(cfg *Config) error {
 		cfg.MemtableStructure = CONFIG_MEMTABLE_STRUCTURE
 		cfg.NumberOfMemtables = CONFIG_NUMBER_OF_MEMTABLES
 		cfg.CacheMaxSize = CONFIG_CACHE_MAX_SIZE
+		cfg.CompactBy = CONFIG_COMPACT_BY
+		cfg.MaxBytesSSTables = CONFIG_MAX_BYTES_SSTABLES
 	} else {
 		err = json.Unmarshal(jsonFile, &cfg)
 		if err != nil {
