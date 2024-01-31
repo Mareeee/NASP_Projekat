@@ -10,58 +10,57 @@ import (
 	"strconv"
 )
 
-func RangeScan(minKey, maxKey string) ([]*record.Record, error) {
-	if minKey >= maxKey {
-		return nil, errors.New("Min key has to be lower than Max key!")
-	}
-
+func FindMinKeyRangeScanSSTable(sstableNumber int, minKey, maxKey string) (*record.Record, int, error) {
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
-	var resultRecords []*record.Record
-
-	for i := cfg.NumberOfSSTables; i > 0; i-- {
-		_, err := LoadSSTable(i)
-		if err != nil {
-			return nil, err
-		}
-
-		lastKey, offset, err := loadAndFindIndexOffsetRangeScan(i, minKey)
-		if err != nil {
-			return nil, err
-		}
-
-		valueOffset, err := loadAndFindValueOffsetRangeScan(i, uint64(offset), minKey, lastKey)
-		if err != nil {
-			return nil, err
-		}
-
-		minKeyOffset, err := findMinKeyOffset(i, minKey, maxKey, uint64(valueOffset))
-		if err != nil {
-			return nil, err
-		} else if minKeyOffset == -1 {
-			return nil, nil
-		}
-
-		record, err := loadRecordRangeScan(i, minKey, maxKey, uint64(minKeyOffset))
-		if err != nil {
-			return nil, err
-		}
-
-		for record != nil {
-			if !record.Tombstone {
-				resultRecords = append(resultRecords, record)
-			}
-
-			minKeyOffset += int64(len(record.ToBytes()))
-			record, err = loadRecordRangeScan(i, minKey, maxKey, uint64(minKeyOffset))
-			if err != nil {
-				return nil, err
-			}
-		}
+	_, err := LoadSSTable(sstableNumber)
+	if err != nil {
+		return nil, -1, err
 	}
 
-	return resultRecords, nil
+	lastKey, offset, err := loadAndFindIndexOffsetRangeScan(sstableNumber, minKey)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	valueOffset, err := loadAndFindValueOffsetRangeScan(sstableNumber, uint64(offset), minKey, lastKey)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	minKeyOffset, err := findMinKeyOffset(sstableNumber, minKey, maxKey, uint64(valueOffset))
+	if err != nil {
+		return nil, -1, err
+	} else if minKeyOffset == -1 {
+		return nil, -1, err
+	}
+
+	record, err := loadRecordRangeScan(sstableNumber, minKey, maxKey, uint64(minKeyOffset))
+	if err != nil {
+		return nil, -1, err
+	}
+
+	if record != nil {
+		minKeyOffset += int64(len(record.ToBytes()))
+		return record, int(minKeyOffset), nil
+	}
+
+	return nil, -1, nil
+}
+
+func GetNextMinRangeScanSSTable(sstableNumber int, minKey, maxKey string, offset int64) (*record.Record, int, error) {
+	record, err := loadRecordRangeScan(sstableNumber, minKey, maxKey, uint64(offset))
+	if err != nil {
+		return nil, -1, err
+	}
+
+	if record != nil {
+		offset += int64(len(record.ToBytes()))
+		return record, int(offset), nil
+	}
+
+	return nil, -1, nil
 }
 
 func loadAndFindIndexOffsetRangeScan(fileNumber int, minKey string) (string, int64, error) {
