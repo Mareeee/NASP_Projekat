@@ -11,54 +11,57 @@ import (
 	"strings"
 )
 
-func PrefixScan(prefix string) ([]*record.Record, error) {
+func FindFirstPrefixSSTable(sstableNumber int, prefix string) (*record.Record, int, error) {
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
-	var resultRecords []*record.Record
-
-	for i := cfg.NumberOfSSTables; i > 0; i-- {
-		_, err := LoadSSTable(i)
-		if err != nil {
-			return nil, err
-		}
-
-		lastKey, offset, err := loadAndFindIndexOffsetPrefixScan(i, prefix)
-		if err != nil {
-			return nil, err
-		}
-
-		valueOffset, err := loadAndFindValueOffsetPrefixScan(i, uint64(offset), prefix, lastKey)
-		if err != nil {
-			return nil, err
-		}
-
-		firstPrefixOffset, err := findFirstPrefixOffset(i, prefix, uint64(valueOffset))
-		if err != nil {
-			return nil, err
-		} else if firstPrefixOffset == -1 {
-			return nil, nil
-		}
-
-		record, err := loadRecordPrefixScan(i, prefix, uint64(firstPrefixOffset))
-		if err != nil {
-			return nil, err
-		}
-
-		for record != nil {
-			if !record.Tombstone {
-				resultRecords = append(resultRecords, record)
-			}
-
-			firstPrefixOffset += int64(len(record.ToBytes()))
-			record, err = loadRecordPrefixScan(i, prefix, uint64(firstPrefixOffset))
-			if err != nil {
-				return nil, err
-			}
-		}
+	_, err := LoadSSTable(sstableNumber)
+	if err != nil {
+		return nil, -1, err
 	}
 
-	return resultRecords, nil
+	lastKey, offset, err := loadAndFindIndexOffsetPrefixScan(sstableNumber, prefix)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	valueOffset, err := loadAndFindValueOffsetPrefixScan(sstableNumber, uint64(offset), prefix, lastKey)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	firstPrefixOffset, err := findFirstPrefixOffset(sstableNumber, prefix, uint64(valueOffset))
+	if err != nil {
+		return nil, -1, err
+	} else if firstPrefixOffset == -1 {
+		return nil, -1, err
+	}
+
+	record, err := loadRecordPrefixScan(sstableNumber, prefix, uint64(firstPrefixOffset))
+	if err != nil {
+		return nil, -1, err
+	}
+
+	if record != nil && !record.Tombstone {
+		firstPrefixOffset += int64(len(record.ToBytes()))
+		return record, int(firstPrefixOffset), nil
+	}
+
+	return nil, -1, nil
+}
+
+func GetNextPrefixSSTable(sstableNumber int, prefix string, offset int64) (*record.Record, int, error) {
+	record, err := loadRecordPrefixScan(sstableNumber, prefix, uint64(offset))
+	if err != nil {
+		return nil, -1, err
+	}
+
+	if record != nil && !record.Tombstone {
+		offset += int64(len(record.ToBytes()))
+		return record, int(offset), nil
+	}
+
+	return nil, -1, nil
 }
 
 func loadAndFindIndexOffsetPrefixScan(fileNumber int, prefix string) (string, int64, error) {
