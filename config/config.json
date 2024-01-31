@@ -2,7 +2,6 @@
   "NumberOfLevels": 2,
   "MaxTables": 2,
   "NumberOfSegments": 1,
-  "LowWaterMark": 0,
   "SegmentSize": 2048,
   "LastSegmentSize": 1236,
   "MaxHeight": 5,

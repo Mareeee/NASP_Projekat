@@ -10,15 +10,17 @@ import (
 )
 
 type Memtable struct {
-	skiplist    *skiplist.SkipList
-	bTree       *btree.BTree
-	CurrentSize int
-	config      config.Config
+	skiplist           *skiplist.SkipList
+	bTree              *btree.BTree
+	CurrentSize        int
+	SizeOfRecordsInWal int
+	config             config.Config
 }
 
 func MemtableConstructor(config config.Config) *Memtable {
 	mt := new(Memtable)
 	mt.CurrentSize = 0
+	mt.SizeOfRecordsInWal = 0
 	mt.config = config
 	if mt.config.MemtableStructure == "skiplist" {
 		mt.skiplist = skiplist.NewSkipList()
@@ -59,9 +61,11 @@ func (mt *Memtable) Insert(record record.Record) bool {
 			_, found := mt.skiplist.Search(record.Key)
 			if found {
 				mt.Update(record.Key, record.Value)
+				mt.SizeOfRecordsInWal += len(record.ToBytes())
 			} else {
 				mt.skiplist.Insert(record)
 				mt.CurrentSize += 1
+				mt.SizeOfRecordsInWal += len(record.ToBytes())
 			}
 		} else if mt.config.MemtableStructure == "btree" {
 			//it updated the value if the key already existed
@@ -70,6 +74,7 @@ func (mt *Memtable) Insert(record record.Record) bool {
 				mt.bTree.Insert(record.Key, record)
 				mt.CurrentSize += 1
 			}
+			mt.SizeOfRecordsInWal += len(record.ToBytes())
 		}
 	} else {
 		return false
@@ -101,6 +106,7 @@ func (mt *Memtable) Delete(record record.Record) {
 		record.Timestamp = time.Now().Unix()
 		mt.bTree.SearchForInsertion(record.Key, record)
 	}
+	mt.SizeOfRecordsInWal += len(record.ToBytes())
 }
 
 func (mt *Memtable) PrintMemtableRecords() {
@@ -113,6 +119,7 @@ func (mt *Memtable) PrintMemtableRecords() {
 func (mt *Memtable) Flush() []record.Record {
 	var elements []record.Record
 	mt.CurrentSize = 0
+	mt.SizeOfRecordsInWal = 0
 	if mt.config.MemtableStructure == "skiplist" {
 		elements = mt.skiplist.GetRecords()
 		mt.skiplist = skiplist.NewSkipList()
