@@ -215,13 +215,13 @@ func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
 }
 
 func (e *Engine) recover() error {
-	all_records, err := e.Wal.LoadAllRecords()
+	all_records, err := e.Wal.IndependentLoadAllRecords()
 	if err != nil {
 		return err
 	}
 
 	for i := len(all_records) - 1; i >= 0; i-- {
-		e.AddRecordToMemtable(*all_records[i])
+		e.AddRecordToMemtable(all_records[i])
 	}
 
 	return nil
@@ -236,11 +236,10 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
 			sstable.NewSSTable(all_records, &e.config, 1)
-			uradilo := lsm.Compact(&e.config, "sizeTiered")
-			if uradilo {
-				fmt.Println("Radi")
-			}
+			lsm.Compact(&e.config, "sizeTiered")
+
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
+		e.all_memtables[e.active_memtable_index].Insert(recordToAdd)
 	}
 }

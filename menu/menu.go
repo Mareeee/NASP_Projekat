@@ -57,6 +57,7 @@ func (m *Menu) Start() {
 				fmt.Println("Rad sa HyperLogLog-om: ")
 				hllMenu()
 			case "X":
+				os.Exit(0)
 			case "x":
 				os.Exit(0)
 			default:
