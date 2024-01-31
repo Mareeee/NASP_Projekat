@@ -8,23 +8,7 @@ import (
 
 const HASH_SIZE = 64
 
-type SimHash struct {
-	fingerprint []int
-}
-
-func NewSimHash(text string) *SimHash {
-	simhash := new(SimHash)
-	simhash.fingerprint = calculateFingerprint(text)
-	return simhash
-}
-
-func LoadSimHash(data []byte) *SimHash {
-	simhash := new(SimHash)
-	simhash.fingerprint = loadFromBytes(data)
-	return simhash
-}
-
-func loadFromBytes(data []byte) []int {
+func LoadFromBytes(data []byte) []int {
 	fingerprint := make([]int, HASH_SIZE)
 
 	for i, b := range data {
@@ -36,11 +20,11 @@ func loadFromBytes(data []byte) []int {
 	return fingerprint
 }
 
-func (s *SimHash) toBytes() []byte {
+func ToBytes(fingerprint []int) []byte {
 	byteSlice := make([]byte, HASH_SIZE/8)
 
 	for i := 0; i < HASH_SIZE; i++ {
-		byteSlice[i/8] |= byte(s.fingerprint[i]) << (7 - uint(i)%8)
+		byteSlice[i/8] |= byte(fingerprint[i]) << (7 - uint(i)%8)
 	}
 
 	return byteSlice
@@ -148,7 +132,7 @@ func convertToZerosAndOnes(calculations []int) []int {
 }
 
 // racunamo b-bitni fingerprint za ulazni set
-func calculateFingerprint(text string) []int {
+func CalculateFingerprint(text string) []int {
 	words := removeStopWords(text)
 	wordWeights := calculateWordWeights(words)
 	wordHashes := calculateWordHashes(wordWeights) // saljemo mapu wordWeights, jer se u words-u mogu ponavljati reci

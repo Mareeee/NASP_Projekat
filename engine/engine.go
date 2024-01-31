@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"main/bloom-filter"
 	"main/cache"
+	"main/cms"
 	"main/config"
 	"main/lsm"
 	"main/memtable"
 	"main/record"
+	"main/simhash"
 	"main/sstable"
 	tokenbucket "main/tokenBucket"
 	"main/wal"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -140,78 +143,58 @@ func (e *Engine) Delete(key string) error {
 	return nil
 }
 
-func (e *Engine) BloomFilterOptions() {
-	fmt.Println("\n[1]	Create new instance")
-	fmt.Println("[2]	Delete instance")
-	fmt.Println("[3]	Add element")
-	fmt.Println("[4]	Search element")
+func (e *Engine) BloomFilterCreateNewInstance(key string) {
+	bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
+	value := bloomFilter.ToBytes()
+	fmt.Println(len(value))
+	e.Put("bf_"+key, value)
+}
 
-	optionScanner := bufio.NewScanner(os.Stdin)
-	optionScanner.Scan()
-	option := optionScanner.Text()
-
-	if e.Tbucket.Take() {
-		switch option {
-		case "1":
-			bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
-			value := bloomFilter.ToBytes()
-			fmt.Println(len(value))
-			key, _ := e.UserInput(false)
-			e.Put(key, value)
-		case "2":
-			key, _ := e.UserInput(false)
-			e.Delete(key)
-		case "3":
-			fmt.Println("Enter instance of bloomfilter: ")
-			key_bf, _ := e.UserInput(false)
-			bloom_record := e.Get(key_bf)
-			if bloom_record != nil {
-				fmt.Println("Enter element: ")
-				key, _ := e.UserInput(false)
-				bloomFilter := *bloom.FromBytes(bloom_record.Value)
-				bloomFilter.AddElement(key)
-				value := bloomFilter.ToBytes()
-				e.Put(key, value)
-			}
-		case "4":
-			fmt.Println("Enter instance of bloomfilter: ")
-			key_bf, _ := e.UserInput(false)
-			bloom_record := e.Get(key_bf)
-			if bloom_record != nil {
-				fmt.Println("Enter element: ")
-				key, _ := e.UserInput(false)
-				bloomFilter := *bloom.FromBytes(bloom_record.Value)
-				fmt.Println(bloomFilter.CheckElement(key))
-				value := bloomFilter.ToBytes()
-				e.Put(key, value)
-			}
-		default:
-			fmt.Println("Invalid option!")
-		}
-	} else {
-		fmt.Println("Rate limit exceeded. Waiting...")
-		time.Sleep(time.Second)
+func (e *Engine) BloomFilterAddElement(key, element string) {
+	bloom_record := e.Get(key)
+	if bloom_record != nil {
+		bloomFilter := *bloom.FromBytes(bloom_record.Value)
+		bloomFilter.AddElement(element)
+		value := bloomFilter.ToBytes()
+		e.Put(key, value)
 	}
 }
 
-func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
-	fmt.Print("Input key: ")
-	keyScanner := bufio.NewScanner(os.Stdin)
-	keyScanner.Scan()
-	key := keyScanner.Text()
-	if key == "" {
-		fmt.Println("invalid key")
-		return "", nil
+func (e *Engine) BloomFilterCheckElement(key, element string) {
+	bloom_record := e.Get(key)
+	if bloom_record != nil {
+		bloomFilter := *bloom.FromBytes(bloom_record.Value)
+		fmt.Println(bloomFilter.CheckElement(element))
 	}
-	if inputValueAlso {
-		fmt.Print("Input value: ")
-		valueScanner := bufio.NewScanner(os.Stdin)
-		valueScanner.Scan()
-		value := valueScanner.Text()
-		return key, []byte(value)
-	} else {
-		return key, nil
+}
+
+func (e *Engine) CalculateFingerprintSimHash(key string, text string) error {
+	fingerprint := simhash.CalculateFingerprint(text)
+	value := simhash.ToBytes(fingerprint)
+	err := e.Put(key, value)
+	if err != nil {
+		return err
 	}
+	fmt.Println("fingerprint = " + string(value))
+	return nil
+}
+
+func (e *Engine) CalculateHammingDistanceSimHash(key1, key2 string) error {
+	record1 := e.Get(key1)
+	if record1 == nil {
+		return errors.New("key not found")
+	}
+	record2 := e.Get(key2)
+	if record2 == nil {
+		return errors.New("key not found")
+	}
+
+	fingerprint1 := simhash.LoadFromBytes(record1.Value)
+	fingerprint2 := simhash.LoadFromBytes(record2.Value)
+	hamming := simhash.HammingDistance(fingerprint1, fingerprint2)
+	fmt.Println("hamming distance = " + fmt.Sprint(hamming))
+
+	return nil
 }
 
 func (e *Engine) recover() error {
@@ -225,6 +208,71 @@ func (e *Engine) recover() error {
 	}
 
 	return nil
+}
+
+func (e *Engine) CmsUsage() {
+	fmt.Println("1 - Create new cms.")
+	fmt.Println("2 - Add new element")
+	fmt.Println("3 - Delete cms")
+	fmt.Println("4 - Check frequency of element")
+
+	fmt.Print("Input option: ")
+	optionScanner := bufio.NewScanner(os.Stdin)
+	optionScanner.Scan()
+	option := optionScanner.Text()
+	if e.Tbucket.Take() {
+		switch option {
+		case "1":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			cms := new(cms.CountMinSketch)
+			cms.NewCountMinSketch(0.1, 0.1)
+			e.Put("cms_"+key, cms.ToBytes())
+
+		case "2":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			record := e.Get(key)
+			if record != nil && strings.HasPrefix(key, "cms_") {
+				cms := *cms.LoadCMS(record.Value)
+				fmt.Print("Input value: ")
+				valueScanner := bufio.NewScanner(os.Stdin)
+				valueScanner.Scan()
+				value := valueScanner.Text()
+				cms.AddElement(value)
+				e.Put(record.Key, cms.ToBytes())
+			}
+
+		case "3":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			e.Delete(key)
+		case "4":
+			fmt.Print("Input key: ")
+			keyScanner := bufio.NewScanner(os.Stdin)
+			keyScanner.Scan()
+			key := optionScanner.Text()
+			record := e.Get(key)
+			if record != nil && strings.HasPrefix(key, "cms_") {
+				cms := *cms.LoadCMS(record.Value)
+				fmt.Print("Input value: ")
+				valueScanner := bufio.NewScanner(os.Stdin)
+				valueScanner.Scan()
+				value := valueScanner.Text()
+				fmt.Println(cms.NumberOfRepetitions(value))
+				e.Put(record.Key, cms.ToBytes())
+			}
+		}
+	} else {
+		fmt.Println("Rate limit exceeded. Waiting...")
+		time.Sleep(time.Second)
+	}
 }
 
 func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
