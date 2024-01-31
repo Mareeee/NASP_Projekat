@@ -6,6 +6,7 @@ import (
 	"main/engine"
 	hll "main/hyperloglog"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -74,14 +75,16 @@ func (m *Menu) Start() {
 }
 
 func hllMenu() {
+	var key string
+	var keyhll string
 	engine := engine.Engine{}
 	engine.Engine()
-	fmt.Println("[1]	Create new instance")
-	fmt.Println("[2]	Delete already existing instance")
-	fmt.Println("[3]	Adding a new element into an instance")
-	fmt.Println("[4]	Provera kardiniliteta")
-	fmt.Println("[X]	EXIT")
 	for {
+		fmt.Println("[1]	Create new instance")
+		fmt.Println("[2]	Delete already existing instance")
+		fmt.Println("[3]	Adding a new element into an instance")
+		fmt.Println("[4]	Cardinality of an instance")
+		fmt.Println("[X]	EXIT")
 		optionScanner := bufio.NewScanner(os.Stdin)
 		optionScanner.Scan()
 		option := optionScanner.Text()
@@ -96,36 +99,44 @@ func hllMenu() {
 			engine.Put("hll_"+key, data)
 		case "2":
 			fmt.Println("Choose the name of HyperLogLog you want to delete: ")
-			key, _ := UserInput(false)
-			engine.Delete(key)
+			key, _ = UserInput(false)
+			if strings.HasPrefix(key, "hll_") {
+				engine.Delete(key)
+			} else {
+				fmt.Println("Such HyperLogLog doesn't exist")
+			}
 		case "3":
 			fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
-			keyhll, _ := UserInput(false)
+			keyhll, _ = UserInput(false)
 			record := engine.Get(keyhll)
 			//hyperloglog not found
-			if record == nil {
-				continue
+			if record != nil && strings.HasPrefix(keyhll, "hll_") {
+				data := record.Value
+				hloglog := hll.LoadingHLL(data)
+				//adding a key
+				fmt.Println("Choose the key you want to add: ")
+				key, _ = UserInput(false)
+				hloglog.AddElement(key)
+				engine.Put(keyhll, hloglog.ToBytes())
+			} else {
+				fmt.Println("Such HyperLogLog doesn't exist")
 			}
-			data := record.Value
-			hloglog := hll.LoadingHLL(data)
-			//adding a key
-			fmt.Println("Choose the key you want to add: ")
-			key, _ := UserInput(false)
-			hloglog.AddElement(key)
-			engine.Put(keyhll, hloglog.ToBytes())
 		case "4":
-			fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
-			key, _ := UserInput(false)
+			fmt.Println("Choose the name of HyperLogLog you want to see the estimation for: ")
+			key, _ = UserInput(false)
 			record := engine.Get(key)
 			//hyperloglog not found
-			if record == nil {
-				continue
+			if record != nil && strings.HasPrefix(key, "hll_") {
+				data := record.Value
+				hloglog := hll.LoadingHLL(data)
+				estimation := hloglog.Estimate()
+				fmt.Println("The estimation of unique element is: ", estimation)
+			} else {
+				fmt.Println("Such HyperLogLog doesn't exist")
 			}
-			data := record.Value
-			hloglog := hll.LoadingHLL(data)
-			estimation := hloglog.Estimate()
-			fmt.Println("The estimation of unique element is: ", estimation)
 		case "X":
+			return
+		case "x":
 			return
 		default:
 			fmt.Println("Invalid option!")

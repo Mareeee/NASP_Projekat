@@ -8,7 +8,6 @@ import (
 	"main/cache"
 	"main/cms"
 	"main/config"
-	"main/lsm"
 	"main/memtable"
 	"main/record"
 	"main/simhash"
@@ -16,6 +15,8 @@ import (
 	tokenbucket "main/tokenBucket"
 	"main/wal"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -72,7 +73,7 @@ func (e *Engine) Get(key string) *record.Record {
 		}
 		i = previous_index
 	}
-	for {
+	for j := 0; j < e.config.NumberOfMemtables; j++ {
 		//we haven't found a record with the given key
 		if e.all_memtables[i].CurrentSize == 0 {
 			break
@@ -90,7 +91,6 @@ func (e *Engine) Get(key string) *record.Record {
 			i = e.config.NumberOfMemtables - 1
 		}
 	}
-
 	//going through cache
 	record, found := e.Cache.Get(key)
 	//we found it in cache
@@ -283,11 +283,134 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 
 		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
+			e.Wal.DeleteWalSegmentsEngine(e.all_memtables[e.active_memtable_index].SizeOfRecordsInWal)
 			sstable.NewSSTable(all_records, &e.config, 1)
-			lsm.Compact(&e.config, "sizeTiered")
-
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
 		e.all_memtables[e.active_memtable_index].Insert(recordToAdd)
 	}
+}
+
+func (e *Engine) PrefixScan(prefix string, pageNumber, pageSize int) []record.Record {
+	var page []record.Record
+	currentPage := 1
+
+	sstables := allSSTables()
+	var sstablesOffsets []int
+	memtables := e.all_memtables
+	var memtableIndexes []int
+
+	i := 0
+	for i < len(memtables) && len(memtables) != 0 {
+		record, index := memtable.FindFirstPrefixMemtable(memtables[i], prefix, e.config.MemtableStructure)
+		if record != nil {
+			page = append(page, *record)
+			memtableIndexes = append(memtableIndexes, index)
+			i++
+		} else {
+			memtables = append(memtables[:i], memtables[i+1:]...)
+		}
+	}
+
+	i = 0
+	for i < len(sstables) && len(sstables) != 0 {
+		record, offset, _ := sstable.FindFirstPrefixSSTable(sstables[i][0], sstables[i][1], prefix)
+		if record != nil {
+			page = append(page, *record)
+			sstablesOffsets = append(sstablesOffsets, offset)
+			i++
+		} else {
+			sstables = append(sstables[:i], sstables[i+1:]...)
+		}
+	}
+
+	if len(memtables) == 0 && len(sstables) == 0 {
+		return nil
+	}
+
+	page = sortAndRemoveSame(page)
+
+	if pageNumber == 1 && len(page) >= pageSize {
+		return page[:pageSize]
+	}
+
+	for len(memtables) != 0 && len(sstables) != 0 {
+		i := 0
+		for i < len(memtables) && len(memtables) != 0 {
+			record, index := memtable.GetNextPrefixMemtable(memtables[i], prefix, memtableIndexes[i], e.config.MemtableStructure)
+			if record != nil {
+				page = append(page, *record)
+				memtableIndexes = append(memtableIndexes, index)
+				i++
+			} else {
+				memtables = append(memtables[:i], memtables[i+1:]...)
+			}
+		}
+
+		i = 0
+		for i < len(sstables) && len(sstables) != 0 {
+			record, offset, _ := sstable.GetNextPrefixSSTable(sstables[i][0], sstables[i][1], prefix, int64(sstablesOffsets[i]))
+			if record != nil {
+				page = append(page, *record)
+				sstablesOffsets = append(sstablesOffsets, offset)
+				i++
+			} else {
+				sstables = append(sstables[:i], sstables[i+1:]...)
+			}
+		}
+
+		page = sortAndRemoveSame(page)
+
+		if len(page) >= pageSize && currentPage == pageNumber {
+			break
+		} else if len(page) >= pageSize && currentPage < pageNumber {
+			currentPage++
+			page = page[pageSize:]
+		} else {
+			continue
+		}
+
+	}
+
+	return page[:pageSize]
+}
+
+func sortAndRemoveSame(page []record.Record) []record.Record {
+	sort.Slice(page, func(i, j int) bool {
+		if page[i].Key != page[j].Key {
+			return page[i].Key < page[j].Key
+		}
+		return page[i].Timestamp > page[j].Timestamp
+	})
+
+	var result []record.Record
+	seen := make(map[string]bool)
+	for _, r := range page {
+		if !seen[r.Key] {
+			seen[r.Key] = true
+			result = append(result, r)
+		}
+	}
+
+	return result
+}
+
+func allSSTables() [][]int {
+	var data [][]int
+	files, _ := os.ReadDir(config.SSTABLE_DIRECTORY)
+
+	for _, file := range files {
+		if strings.Contains(file.Name(), "sstable_data") {
+			sstable_tokens := strings.Split(file.Name(), "_")
+			level, _ := strconv.Atoi(sstable_tokens[1])
+			index, _ := strconv.Atoi(sstable_tokens[4])
+			data = append(data, []int{level, index})
+
+			sort.Slice(data, func(i, j int) bool {
+				return data[i][1] < data[j][1]
+			})
+		}
+	}
+
+	return data
 }
