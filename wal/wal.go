@@ -65,6 +65,146 @@ func (w Wal) WriteToLastSegment(recordBytes []byte) error {
 	return err
 }
 
+func (w *Wal) IndependentLoadAllRecords() ([]record.Record, error) {
+	i := 1
+	var allRecords []record.Record
+	var rec record.Record
+	f, err := os.Open(getPath(i))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	for {
+		CRCBytes := make([]byte, 4)
+		n, _ := f.Read(CRCBytes)
+		if n != 4 {
+			partOfPrevious := CRCBytes[len(CRCBytes)-n:]
+			f, err = os.Open(getPath(i + 1))
+			if err != nil {
+				break
+			}
+			defer f.Close()
+			i++
+			CRCBytesNext := make([]byte, 4-len(partOfPrevious))
+			_, err = f.Read(CRCBytesNext)
+			if err != nil {
+				return nil, err
+			}
+			rec.Crc32 = binary.BigEndian.Uint32(append(partOfPrevious[:], CRCBytesNext[:]...))
+		} else {
+			rec.Crc32 = binary.BigEndian.Uint32(CRCBytes)
+		}
+
+		timestampBytes := make([]byte, 8)
+		n, _ = f.Read(timestampBytes)
+		if n != 8 {
+			partOfPrevious := timestampBytes[len(timestampBytes)-n:]
+			f, _ = os.Open(getPath(i + 1))
+			defer f.Close()
+			i++
+			timestampBytesNext := make([]byte, 8-len(partOfPrevious))
+			_, err := f.Read(timestampBytesNext)
+			if err != nil {
+				return nil, err
+			}
+			rec.Timestamp = int64(binary.BigEndian.Uint64(append(partOfPrevious[:], timestampBytesNext[:]...)))
+		} else {
+			rec.Timestamp = int64(binary.BigEndian.Uint32(timestampBytes))
+		}
+
+		tombstoneBytes := make([]byte, 1)
+		n, _ = f.Read(tombstoneBytes)
+		if n != 1 {
+			partOfPrevious := tombstoneBytes[len(tombstoneBytes)-n:]
+			f, _ = os.Open(getPath(i + 1))
+			defer f.Close()
+			i++
+			tombstoneBytesNext := make([]byte, 1-len(partOfPrevious))
+			_, err := f.Read(tombstoneBytesNext)
+			if err != nil {
+				return nil, err
+			}
+			rec.Tombstone = (append(partOfPrevious[:], tombstoneBytesNext[:]...))[0] == 1
+		} else {
+			rec.Tombstone = tombstoneBytes[0] == 1
+		}
+
+		keySizeBytes := make([]byte, 8)
+		n, _ = f.Read(keySizeBytes)
+		if n != 8 {
+			partOfPrevious := keySizeBytes[len(keySizeBytes)-n:]
+			f, _ = os.Open(getPath(i + 1))
+			defer f.Close()
+			i++
+			keySizeBytesNext := make([]byte, 8-len(partOfPrevious))
+			_, err := f.Read(keySizeBytesNext)
+			if err != nil {
+				return nil, err
+			}
+			rec.KeySize = int64(binary.BigEndian.Uint64(append(partOfPrevious[:], keySizeBytesNext[:]...)))
+		} else {
+			rec.KeySize = int64(binary.BigEndian.Uint64(keySizeBytes))
+		}
+
+		valueSizeBytes := make([]byte, 8)
+		n, _ = f.Read(valueSizeBytes)
+		if n != 8 {
+			partOfPrevious := valueSizeBytes[len(valueSizeBytes)-n:]
+			f, _ = os.Open(getPath(i + 1))
+			defer f.Close()
+			i++
+			valueSizeBytesBytesNext := make([]byte, 8-len(partOfPrevious))
+			_, err := f.Read(valueSizeBytesBytesNext)
+			if err != nil {
+				return nil, err
+			}
+			rec.ValueSize = int64(binary.BigEndian.Uint64(append(partOfPrevious[:], valueSizeBytesBytesNext[:]...)))
+		} else {
+			rec.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
+		}
+
+		keyBytes := make([]byte, rec.KeySize)
+		n, _ = f.Read(keyBytes)
+		if n != int(rec.KeySize) {
+			partOfPrevious := keyBytes[len(keyBytes)-n:]
+			f, _ = os.Open(getPath(i + 1))
+			defer f.Close()
+			i++
+			keyBytesNext := make([]byte, int(rec.KeySize)-len(partOfPrevious))
+			_, err := f.Read(keyBytesNext)
+			if err != nil {
+				return nil, err
+			}
+			rec.Key = string(append(partOfPrevious[:], keyBytesNext[:]...))
+		} else {
+			rec.Key = string(keyBytes)
+		}
+
+		valueBytes := make([]byte, rec.ValueSize)
+		n, _ = f.Read(valueBytes)
+		if n != int(rec.ValueSize) {
+			partOfPrevious := valueBytes[len(valueBytes)-n:]
+			f, _ = os.Open(getPath(i + 1))
+			defer f.Close()
+			i++
+			valueBytesNext := make([]byte, int(rec.ValueSize)-len(partOfPrevious))
+			_, err := f.Read(valueBytesNext)
+			if err != nil {
+				return nil, err
+			}
+			rec.Value = append(partOfPrevious[:], valueBytesNext[:]...)
+		} else {
+			rec.Value = valueBytes
+		}
+
+		allRecords = append(allRecords, rec)
+		rec = record.Record{}
+	}
+
+	return allRecords, nil
+}
+
 /* Ucitavanje svih zapisa odjednom */
 func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record

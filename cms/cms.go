@@ -57,7 +57,7 @@ func (cms *CountMinSketch) matrixLength() uint32 {
 	return cms.m * cms.k * 4
 }
 
-func (cms *CountMinSketch) toBytes() []byte {
+func (cms *CountMinSketch) ToBytes() []byte {
 	bufferSize := 8 + cms.hfLength() + int(cms.matrixLength())
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint32(buffer[0:4], cms.m)
@@ -77,7 +77,7 @@ func (cms *CountMinSketch) toBytes() []byte {
 }
 
 func (cms *CountMinSketch) WriteToBinFile() error {
-	data := cms.toBytes()
+	data := cms.ToBytes()
 
 	f, err := os.OpenFile(config.CMS_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -89,24 +89,8 @@ func (cms *CountMinSketch) WriteToBinFile() error {
 	return err
 }
 
-func (cms *CountMinSketch) LoadCMS() error {
-	f, err := os.OpenFile(config.CMS_FILE_PATH, os.O_RDONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	stat, err := f.Stat()
-	if err != nil {
-		return err
-	}
-
-	data := make([]byte, stat.Size())
-	_, err = f.Read(data)
-	if err != nil {
-		return err
-	}
-
+func LoadCMS(data []byte) *CountMinSketch {
+	cms := new(CountMinSketch)
 	cms.m = binary.BigEndian.Uint32(data[0:4])
 	cms.k = binary.BigEndian.Uint32(data[4:8])
 
@@ -129,5 +113,5 @@ func (cms *CountMinSketch) LoadCMS() error {
 			offSet += 4
 		}
 	}
-	return nil
+	return cms
 }
