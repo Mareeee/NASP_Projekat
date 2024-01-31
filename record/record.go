@@ -44,6 +44,54 @@ func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, va
 	}
 }
 
+func LoadRecordFromFile(file os.File) (Record, error) {
+	var record Record
+
+	CRCBytes := make([]byte, 4)
+	_, err := file.Read(CRCBytes)
+	if err != nil {
+		return record, err
+	}
+	record.Crc32 = binary.BigEndian.Uint32(CRCBytes)
+
+	timestampBytes := make([]byte, 8)
+	file.Read(timestampBytes)
+	record.Timestamp = int64(binary.BigEndian.Uint64(timestampBytes))
+
+	tombstoneBytes := make([]byte, 1)
+	file.Read(tombstoneBytes)
+	record.Tombstone = tombstoneBytes[0] == 1
+
+	keySizeBytes := make([]byte, 8)
+	file.Read(keySizeBytes)
+	record.KeySize = int64(binary.BigEndian.Uint64(keySizeBytes))
+
+	valueSizeBytes := make([]byte, 8)
+	file.Read(valueSizeBytes)
+	record.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
+
+	keyBytes := make([]byte, record.KeySize)
+	file.Read(keyBytes)
+	record.Key = string(keyBytes)
+
+	valueBytes := make([]byte, record.ValueSize)
+	file.Read(valueBytes)
+	record.Value = valueBytes
+
+	return record, err
+}
+
+func LoadAllRecordsFromFiles(filePaths []*os.File) []Record {
+	var allRecords []Record
+
+	for i := 0; i < len(filePaths); i++ {
+		record, _ := LoadRecordFromFile(*filePaths[i])
+		allRecords = append(allRecords, record)
+	}
+
+	return allRecords
+}
+
 func LoadRecordsFromFile(fileName string) ([]*Record, error) {
 	var records []*Record
 
@@ -128,4 +176,8 @@ func GetNewerRecord(record1, record2 Record) Record {
 	} else {
 		return record2
 	}
+}
+
+func IsSimilar(rec Record, target Record) bool {
+	return rec.Crc32 == target.Crc32 && rec.Timestamp == target.Timestamp && rec.Tombstone == target.Tombstone && rec.KeySize == target.KeySize && rec.ValueSize == target.ValueSize && rec.Key == target.Key && string(rec.Value) == string(target.Value)
 }
