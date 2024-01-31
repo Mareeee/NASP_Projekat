@@ -8,10 +8,9 @@ import (
 	"main/cache"
 	"main/cms"
 	"main/config"
-	hll "main/hyperloglog"
-	"main/lsm"
 	"main/memtable"
 	"main/record"
+	"main/simhash"
 	"main/sstable"
 	tokenbucket "main/tokenBucket"
 	"main/wal"
@@ -72,7 +71,7 @@ func (e *Engine) Get(key string) *record.Record {
 		}
 		i = previous_index
 	}
-	for {
+	for j := 0; j < e.config.NumberOfMemtables; j++ {
 		//we haven't found a record with the given key
 		if e.all_memtables[i].CurrentSize == 0 {
 			break
@@ -90,7 +89,6 @@ func (e *Engine) Get(key string) *record.Record {
 			i = e.config.NumberOfMemtables - 1
 		}
 	}
-
 	//going through cache
 	record, found := e.Cache.Get(key)
 	//we found it in cache
@@ -143,152 +141,68 @@ func (e *Engine) Delete(key string) error {
 	return nil
 }
 
-func (e *Engine) BloomFilterOptions() {
-	fmt.Println("\n[1]	Create new instance")
-	fmt.Println("[2]	Delete instance")
-	fmt.Println("[3]	Add element")
-	fmt.Println("[4]	Search element")
+func (e *Engine) BloomFilterCreateNewInstance(key string) {
+	bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
+	value := bloomFilter.ToBytes()
+	fmt.Println(len(value))
+	e.Put("bf_"+key, value)
+}
 
-	optionScanner := bufio.NewScanner(os.Stdin)
-	optionScanner.Scan()
-	option := optionScanner.Text()
-
-	if e.Tbucket.Take() {
-		switch option {
-		case "1":
-			bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
-			value := bloomFilter.ToBytes()
-			key, _ := e.UserInput(false)
-			e.Put(key, value)
-		case "2":
-			key, _ := e.UserInput(false)
-			e.Delete(key)
-		case "3":
-			fmt.Println("Enter instance of bloomfilter: ")
-			key_bf, _ := e.UserInput(false)
-			bloom_record := e.Get(key_bf)
-			if bloom_record != nil {
-				fmt.Println("Enter element: ")
-				key, _ := e.UserInput(false)
-				bloomFilter := *bloom.FromBytes(bloom_record.Value)
-				bloomFilter.AddElement(key)
-				value := bloomFilter.ToBytes()
-				e.Put(key, value)
-			}
-		case "4":
-			fmt.Println("Enter instance of bloomfilter: ")
-			key_bf, _ := e.UserInput(false)
-			bloom_record := e.Get(key_bf)
-			if bloom_record != nil {
-				fmt.Println("Enter element: ")
-				key, _ := e.UserInput(false)
-				bloomFilter := *bloom.FromBytes(bloom_record.Value)
-				fmt.Println(bloomFilter.CheckElement(key))
-				value := bloomFilter.ToBytes()
-				e.Put(key, value)
-			}
-		default:
-			fmt.Println("Invalid option!")
-		}
-	} else {
-		fmt.Println("Rate limit exceeded. Waiting...")
-		time.Sleep(time.Second)
+func (e *Engine) BloomFilterAddElement(key, element string) {
+	bloom_record := e.Get(key)
+	if bloom_record != nil {
+		bloomFilter := *bloom.FromBytes(bloom_record.Value)
+		bloomFilter.AddElement(element)
+		value := bloomFilter.ToBytes()
+		e.Put(key, value)
 	}
 }
 
-func (e *Engine) UserInput(inputValueAlso bool) (string, []byte) {
-	fmt.Print("Input key: ")
-	keyScanner := bufio.NewScanner(os.Stdin)
-	keyScanner.Scan()
-	key := keyScanner.Text()
-	if key == "" {
-		fmt.Println("invalid key")
-		return "", nil
-	}
-	if inputValueAlso {
-		fmt.Print("Input value: ")
-		valueScanner := bufio.NewScanner(os.Stdin)
-		valueScanner.Scan()
-		value := valueScanner.Text()
-		return key, []byte(value)
-	} else {
-		return key, nil
+func (e *Engine) BloomFilterCheckElement(key, element string) {
+	bloom_record := e.Get(key)
+	if bloom_record != nil {
+		bloomFilter := *bloom.FromBytes(bloom_record.Value)
+		fmt.Println(bloomFilter.CheckElement(element))
 	}
 }
 
-func (e *Engine) HLLMenu() {
-	for {
-		fmt.Println("[1]	Create new instance")
-		fmt.Println("[2]	Delete already existing instance")
-		fmt.Println("[3]	Adding a new element into an instance")
-		fmt.Println("[4]	Provera kardiniliteta")
-		fmt.Println("[X]	EXIT")
-		optionScanner := bufio.NewScanner(os.Stdin)
-		optionScanner.Scan()
-		option := optionScanner.Text()
-		if e.Tbucket.Take() {
-			switch option {
-			case "1":
-				fmt.Println("Choose name for you HyperLogLog: ")
-				//adding record with key which is name of hyperloglog and value is
-				//hyperloglog in binary
-				key, _ := e.UserInput(false)
-				hloglog := hll.NewHyperLogLog(4)
-				data := hloglog.ToBytes()
-				e.Put("hll_"+key, data)
-			case "2":
-				fmt.Println("Choose the name of HyperLogLog you want to delete: ")
-				key, _ := e.UserInput(false)
-				e.Delete(key)
-			case "3":
-				fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
-				key, _ := e.UserInput(false)
-				record := e.Get(key)
-				//hyperloglog not found
-				if record == nil {
-					fmt.Println("hyperloglog doesnt exist")
-					continue
-				}
-				data := record.Value
-				hloglog := hll.LoadingHLL(data)
-				//adding a key
-				fmt.Println("Choose the key you want to add: ")
-				key, _ = e.UserInput(false)
-				hloglog.AddElement(key)
-				e.Put(key, hloglog.ToBytes())
-			case "4":
-				fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
-				key, _ := e.UserInput(false)
-				record := e.Get(key)
-				//hyperloglog not found
-				if record == nil {
-					fmt.Println("hyperloglog doesnt exist")
-					continue
-				}
-				data := record.Value
-				hloglog := hll.LoadingHLL(data)
-				estimation := hloglog.Estimate()
-				fmt.Println("The estimation of unique element is: ", estimation)
-			case "X":
-				return
-			default:
-				fmt.Println("Invalid option!")
-			}
-		} else {
-			fmt.Println("Rate limit exceeded. Waiting...")
-			time.Sleep(time.Second)
-		}
+func (e *Engine) CalculateFingerprintSimHash(key string, text string) error {
+	fingerprint := simhash.CalculateFingerprint(text)
+	value := simhash.ToBytes(fingerprint)
+	err := e.Put(key, value)
+	if err != nil {
+		return err
 	}
+	fmt.Println("fingerprint = " + string(value))
+	return nil
+}
+
+func (e *Engine) CalculateHammingDistanceSimHash(key1, key2 string) error {
+	record1 := e.Get(key1)
+	if record1 == nil {
+		return errors.New("key not found")
+	}
+	record2 := e.Get(key2)
+	if record2 == nil {
+		return errors.New("key not found")
+	}
+
+	fingerprint1 := simhash.LoadFromBytes(record1.Value)
+	fingerprint2 := simhash.LoadFromBytes(record2.Value)
+	hamming := simhash.HammingDistance(fingerprint1, fingerprint2)
+	fmt.Println("hamming distance = " + fmt.Sprint(hamming))
+
+	return nil
 }
 
 func (e *Engine) recover() error {
-	all_records, err := e.Wal.LoadAllRecords()
+	all_records, err := e.Wal.IndependentLoadAllRecords()
 	if err != nil {
 		return err
 	}
 
 	for i := len(all_records) - 1; i >= 0; i-- {
-		e.AddRecordToMemtable(*all_records[i])
+		e.AddRecordToMemtable(all_records[i])
 	}
 
 	return nil
@@ -369,11 +283,8 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
 			e.Wal.DeleteWalSegmentsEngine(e.all_memtables[e.active_memtable_index].SizeOfRecordsInWal)
 			sstable.NewSSTable(all_records, &e.config, 1)
-			uradilo := lsm.Compact(&e.config, "sizeTiered")
-			if uradilo {
-				fmt.Println("Radi")
-			}
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
+		e.all_memtables[e.active_memtable_index].Insert(recordToAdd)
 	}
 }

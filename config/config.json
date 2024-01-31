@@ -1,6 +1,6 @@
 {
   "NumberOfLevels": 2,
-  "MaxTables": 2,
+  "MaxTables": 5,
   "NumberOfSegments": 1,
   "SegmentSize": 2048,
   "LastSegmentSize": 1236,
@@ -11,8 +11,8 @@
   "Capacity": 10,
   "Rate": 2,
   "M": 3,
-  "MaxSize": 1,
-  "MemtableStructure": "skiplist",
+  "MaxSize": 10,
+  "MemtableStructure": "btree",
   "NumberOfMemtables": 2,
   "CacheMaxSize": 3
 }

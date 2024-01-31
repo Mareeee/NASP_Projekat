@@ -251,7 +251,7 @@ func findSSTableNumber(key string, numOfSSTables int) (int, int, error) {
 		}
 	}
 
-	for i := len(data); i > 0; i-- {
+	for i := len(data) - 1; i >= 0; i-- {
 		sst, err := LoadSSTable(data[i][0], data[i][1])
 
 		if err != nil {
