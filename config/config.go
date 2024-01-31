@@ -17,7 +17,6 @@ const (
 	CONFIG_NUMBER_OF_LEVELS    = 5
 	CONFIG_MAX_TABLES          = 4
 	CONFIG_NUMBER_OF_SEGMENTS  = 0
-	CONFIG_LOW_WATER_MARK      = 0
 	CONFIG_SEGMENT_SIZE        = 3
 	CONFIG_LAST_SEGMENT_SIZE   = 0
 	CONFIG_MAX_HEIGHT          = 5
@@ -38,7 +37,6 @@ type Config struct {
 	MaxTabels      int `json:"MaxTables"`
 	// wal
 	NumberOfSegments int `json:"NumberOfSegments"`
-	LowWaterMark     int `json:"LowWaterMark"`
 	SegmentSize      int `json:"SegmentSize"`
 	LastSegmentSize  int `json:"LastSegmentSize"`
 	// skiplist
@@ -72,10 +70,6 @@ func (cfg *Config) checkValidity() {
 
 	if cfg.NumberOfSegments < 0 {
 		cfg.NumberOfSegments = CONFIG_NUMBER_OF_SEGMENTS
-	}
-
-	if cfg.LowWaterMark < 0 {
-		cfg.LowWaterMark = CONFIG_LOW_WATER_MARK
 	}
 
 	if cfg.SegmentSize < 0 {
@@ -134,7 +128,6 @@ func LoadConfig(cfg *Config) error {
 		cfg.NumberOfLevels = CONFIG_NUMBER_OF_LEVELS
 		cfg.MaxTabels = CONFIG_MAX_TABLES
 		cfg.NumberOfSegments = CONFIG_NUMBER_OF_SEGMENTS
-		cfg.LowWaterMark = CONFIG_LOW_WATER_MARK
 		cfg.SegmentSize = CONFIG_SEGMENT_SIZE
 		cfg.LastSegmentSize = CONFIG_LAST_SEGMENT_SIZE
 		cfg.MaxHeight = CONFIG_MAX_HEIGHT
