@@ -37,7 +37,7 @@ func (m *Menu) Start() {
 			switch option {
 			case "1":
 				key, value := UserInput(true)
-				m.engine.Put(key, value)
+				m.engine.Put(key, value, false)
 			case "2":
 				key, _ := UserInput(false)
 				record := m.engine.Get(key)

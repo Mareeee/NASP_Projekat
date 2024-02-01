@@ -10,7 +10,7 @@ func main() {
 	engine.Engine()
 	records := test.GenerateRandomRecords(5)
 	for i := 0; i < len(records); i++ {
-		engine.Put(records[i].Key, records[i].Value)
+		engine.Put(records[i].Key, records[i].Value, false)
 	}
 	// meni := menu.Menu{}
 	// meni.Start()
