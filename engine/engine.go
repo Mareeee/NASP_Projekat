@@ -39,7 +39,7 @@ func (e *Engine) Engine() {
 
 	// posto lsm nije struktura, zvacemo ga iz package-a
 	e.Cache = *cache.NewCache(e.config)
-	wal, _ := wal.LoadWal(e.config)
+	wal, _ := wal.LoadWal(&e.config)
 	e.Wal = *wal
 	e.Tbucket = *tokenbucket.LoadTokenBucket(e.config)
 	e.all_memtables = memtable.LoadAllMemtables(e.config)

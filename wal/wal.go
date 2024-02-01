@@ -12,11 +12,11 @@ import (
 )
 
 type Wal struct {
-	config       config.Config
+	config       *config.Config
 	LowWaterMark int
 }
 
-func LoadWal(config config.Config) (*Wal, error) {
+func LoadWal(config *config.Config) (*Wal, error) {
 	w := new(Wal)
 	w.config = config
 	w.LowWaterMark = 0
@@ -213,7 +213,7 @@ func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record
 	var data []byte
 
-	err := config.LoadConfig(&w.config)
+	err := config.LoadConfig(w.config)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +318,7 @@ func getPath(numberOfSegment int) string {
 
 func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 	walsToDelete := int(math.Floor(float64(SizeOfRecordsInWal) / float64(w.config.SegmentSize)))
-	remainingBytesToTruncate := SizeOfRecordsInWal - int(walsToDelete)*w.config.SegmentSize
+	remainingBytesToTruncate := SizeOfRecordsInWal - walsToDelete*w.config.SegmentSize
 	// slucaj ako brisemo ceo wal
 	if walsToDelete+1 == w.config.NumberOfSegments && remainingBytesToTruncate == w.config.LastSegmentSize {
 		walsToDelete += 1
@@ -342,7 +342,6 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 			fmt.Println("Error reading file: ", err)
 			continue
 		}
-		fmt.Println("w1vrwbgewg1")
 		f.Seek(0, 0)
 		f.Write(data)
 
@@ -399,8 +398,26 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 				return
 			}
 		}
+	}
+	//if there is only one file left
+	if w.config.NumberOfSegments == 1 && remainingBytesToTruncate != 0 {
+		f, err := os.OpenFile(getPath(1), os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			return
+		}
+		data := make([]byte, w.config.LastSegmentSize-remainingBytesToTruncate)
+		f.Seek(int64(remainingBytesToTruncate), 0)
+		_, err = f.Read(data)
+		if err != nil {
+			fmt.Println("Error reading file: ", err)
+			return
+		}
+		f.Seek(0, 0)
+		f.Write(data)
+		os.Truncate(getPath(1), int64(w.config.LastSegmentSize-remainingBytesToTruncate))
+		w.config.LastSegmentSize -= remainingBytesToTruncate
+		w.config.WriteConfig()
 		f.Close()
-		f2.Close()
 	}
 }
 
