@@ -49,12 +49,12 @@ func (e *Engine) Engine() {
 	e.recover()
 }
 
-func (e *Engine) Put(key string, value []byte) error {
-	err := e.Wal.AddRecord(key, value, false)
+func (e *Engine) Put(key string, value []byte, deleted bool) error {
+	err := e.Wal.AddRecord(key, value, deleted)
 	if err != nil {
 		return errors.New("failed wal insert")
 	}
-	recordToAdd := record.NewRecord(key, value, false)
+	recordToAdd := record.NewRecord(key, value, deleted)
 	e.AddRecordToMemtable(*recordToAdd)
 	e.Cache.Set(key, *recordToAdd)
 	return nil
@@ -114,32 +114,7 @@ func (e *Engine) Delete(key string) error {
 	if record == nil {
 		return errors.New("record not found or unable to be deleted")
 	}
-
-	e.Wal.AddRecord(record.Key, record.Value, true)
-	index := e.active_memtable_index
-	deletedInMemtable := false
-	for i := 0; i < e.config.NumberOfMemtables; i++ {
-		if e.all_memtables[index].CurrentSize == 0 {
-			break
-		}
-
-		found := e.all_memtables[index].Search(record.Key)
-		if found != nil {
-			e.all_memtables[index].Delete(*record)
-			deletedInMemtable = true
-			break
-		}
-		index = (index - 1) % e.config.NumberOfMemtables
-	}
-
-	if !deletedInMemtable {
-		record.Tombstone = true
-		e.all_memtables[e.active_memtable_index].Insert(*record)
-		e.Cache.Set(key, *record)
-		return nil
-	}
-
-	e.Cache.Set(key, *record)
+	e.Put(record.Key, record.Value, true)
 	return nil
 }
 
@@ -147,7 +122,7 @@ func (e *Engine) BloomFilterCreateNewInstance(key string) {
 	bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
 	value := bloomFilter.ToBytes()
 	fmt.Println(len(value))
-	e.Put("bf_"+key, value)
+	e.Put("bf_"+key, value, false)
 }
 
 func (e *Engine) BloomFilterAddElement(key, element string) {
@@ -156,7 +131,7 @@ func (e *Engine) BloomFilterAddElement(key, element string) {
 		bloomFilter := *bloom.FromBytes(bloom_record.Value)
 		bloomFilter.AddElement(element)
 		value := bloomFilter.ToBytes()
-		e.Put(key, value)
+		e.Put(key, value, false)
 	}
 }
 
@@ -171,7 +146,7 @@ func (e *Engine) BloomFilterCheckElement(key, element string) {
 func (e *Engine) CalculateFingerprintSimHash(key string, text string) error {
 	fingerprint := simhash.CalculateFingerprint(text)
 	value := simhash.ToBytes(fingerprint)
-	err := e.Put(key, value)
+	err := e.Put(key, value, false)
 	if err != nil {
 		return err
 	}
@@ -229,7 +204,7 @@ func (e *Engine) CmsUsage() {
 			key := optionScanner.Text()
 			cms := new(cms.CountMinSketch)
 			cms.NewCountMinSketch(0.1, 0.1)
-			e.Put("cms_"+key, cms.ToBytes())
+			e.Put("cms_"+key, cms.ToBytes(), false)
 
 		case "2":
 			fmt.Print("Input key: ")
@@ -244,7 +219,7 @@ func (e *Engine) CmsUsage() {
 				valueScanner.Scan()
 				value := valueScanner.Text()
 				cms.AddElement(value)
-				e.Put(record.Key, cms.ToBytes())
+				e.Put(record.Key, cms.ToBytes(), false)
 			}
 
 		case "3":
@@ -266,7 +241,7 @@ func (e *Engine) CmsUsage() {
 				valueScanner.Scan()
 				value := valueScanner.Text()
 				fmt.Println(cms.NumberOfRepetitions(value))
-				e.Put(record.Key, cms.ToBytes())
+				e.Put(record.Key, cms.ToBytes(), false)
 			}
 		}
 	} else {

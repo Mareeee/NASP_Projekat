@@ -39,7 +39,7 @@ func (m *Menu) Start() {
 			switch option {
 			case "1":
 				key, value := UserInput(true)
-				m.engine.Put(key, value)
+				m.engine.Put(key, value, false)
 			case "2":
 				key, _ := UserInput(false)
 				record := m.engine.Get(key)
@@ -96,7 +96,7 @@ func hllMenu() {
 			key, _ := UserInput(false)
 			hloglog := hll.NewHyperLogLog(4)
 			data := hloglog.ToBytes()
-			engine.Put("hll_"+key, data)
+			engine.Put("hll_"+key, data, false)
 		case "2":
 			fmt.Println("Choose the name of HyperLogLog you want to delete: ")
 			key, _ = UserInput(false)
@@ -117,7 +117,7 @@ func hllMenu() {
 				fmt.Println("Choose the key you want to add: ")
 				key, _ = UserInput(false)
 				hloglog.AddElement(key)
-				engine.Put(keyhll, hloglog.ToBytes())
+				engine.Put(keyhll, hloglog.ToBytes(), false)
 			} else {
 				fmt.Println("Such HyperLogLog doesn't exist")
 			}
