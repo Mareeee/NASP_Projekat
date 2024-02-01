@@ -1,9 +1,11 @@
 {
   "NumberOfLevels": 5,
   "MaxTables": 5,
-  "NumberOfSegments": 1,
+  "CompactBy": "byte",
+  "MaxBytesSSTables": 0,
+  "NumberOfSegments": 8,
   "SegmentSize": 512,
-  "LastSegmentSize": 0,
+  "LastSegmentSize": 416,
   "MaxHeight": 5,
   "NumberOfSSTables": 0,
   "IndexInterval": 2,
