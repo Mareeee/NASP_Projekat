@@ -62,6 +62,9 @@ func (e *Engine) Put(key string, value []byte, deleted bool) error {
 
 func (e *Engine) Get(key string) *record.Record {
 	var record *record.Record
+	if record.Key == "tb_" {
+		return nil
+	}
 	// going through memtable
 	i := e.active_memtable_index
 	//is active memtable empty, if it is try previous
@@ -81,7 +84,7 @@ func (e *Engine) Get(key string) *record.Record {
 
 		record = e.all_memtables[i].Search(key)
 		//we found record with the key
-		if record != nil && !record.Tombstone && record.Key != "tb_" {
+		if record != nil && !record.Tombstone {
 			return record
 		}
 
@@ -94,14 +97,14 @@ func (e *Engine) Get(key string) *record.Record {
 	//going through cache
 	record, found := e.Cache.Get(key)
 	//we found it in cache
-	if found && !record.Tombstone && record.Key != "tb_" {
+	if found && !record.Tombstone {
 		return record
 	}
 
 	//going through sstable
 	record, _ = sstable.Search(key)
 	//we found it in sstable
-	if record != nil && !record.Tombstone && record.Key != "tb_" {
+	if record != nil && !record.Tombstone {
 		return record
 	}
 
