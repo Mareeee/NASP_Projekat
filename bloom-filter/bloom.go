@@ -12,20 +12,13 @@ type BloomFilter struct {
 	hf  []HashWithSeed // niz hash funkcija
 }
 
-func NewBloomFilterMenu(expectedElements int, falsePositiveRate float64) *BloomFilter {
+func NewBloomFilter(expectedElements int, falsePositiveRate float64) *BloomFilter {
 	bf := new(BloomFilter)
 	bf.m = CalculateM(expectedElements, falsePositiveRate)
 	bf.k = CalculateK(expectedElements, bf.m)
 	bf.hf = CreateHashFunctions(bf.k)
 	bf.arr = make([]byte, bf.m)
 	return bf
-}
-
-func (bf *BloomFilter) NewBloomFilter(expectedElements int, falsePositiveRate float64) {
-	bf.m = CalculateM(expectedElements, falsePositiveRate)
-	bf.k = CalculateK(expectedElements, bf.m)
-	bf.hf = CreateHashFunctions(bf.k)
-	bf.arr = make([]byte, bf.m)
 }
 
 func (bf *BloomFilter) AddElement(key string) {
@@ -91,7 +84,9 @@ func (bf *BloomFilter) WriteToBinFile(filepath string) {
 	f.Write(data)
 }
 
-func (bf *BloomFilter) LoadBloomFilter(filepath string) {
+func LoadBloomFilter(filepath string) *BloomFilter {
+	bf := new(BloomFilter)
+
 	f, _ := os.OpenFile(filepath, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -109,4 +104,6 @@ func (bf *BloomFilter) LoadBloomFilter(filepath string) {
 		bf.hf[i] = HashWithSeed{Seed: data[offSet : offSet+32]}
 		offSet += 32
 	}
+
+	return bf
 }

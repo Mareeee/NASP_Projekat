@@ -59,8 +59,7 @@ func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
 		return nil, errors.New("data has been altered")
 	}
 
-	bf := new(bloom.BloomFilter)
-	bf.LoadBloomFilter(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
+	bf := bloom.LoadBloomFilter(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
 
 	sst := new(SSTable)
 	sst.filter = bf
@@ -435,8 +434,7 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.
 }
 
 func (s *SSTable) createFilter(allRecords []record.Record, level int) {
-	s.filter = new(bloom.BloomFilter)
-	s.filter.NewBloomFilter(len(allRecords), 0.01)
+	s.filter = bloom.NewBloomFilter(len(allRecords), 0.01)
 
 	for _, record := range allRecords {
 		s.filter.AddElement(record.Key)
@@ -549,8 +547,7 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
 		summaryOffset = 16 + len([]byte(index[i].key))
 	}
 
-	bf := new(bloom.BloomFilter)
-	bf.NewBloomFilter(count, 0.01)
+	bf := bloom.NewBloomFilter(count, 0.01)
 
 	dataFile, err = os.Open(path)
 	if err != nil {

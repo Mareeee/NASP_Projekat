@@ -14,7 +14,7 @@ func main() {
 	// wal.AddRecord("Mare", []byte("Care"), false)
 	// records := test.GenerateRandomRecords(5)
 	// for i := 0; i < len(records); i++ {
-	// 	engine.Put(records[i].Key, records[i].Value)
+	// 	engine.Put(records[i].Key, records[i].Value, false)
 	// }
 	rekord := engine.Get("Mare")
 	fmt.Printf("rekord.Value: %v\n", rekord)

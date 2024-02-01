@@ -1,7 +1,6 @@
 package memtable
 
 import (
-	"fmt"
 	btree "main/bTree"
 	"main/config"
 	"main/record"
@@ -32,12 +31,12 @@ func MemtableConstructor(config config.Config) *Memtable {
 	return mt
 }
 
-func LoadAllMemtables(config config.Config) *[]Memtable {
-	var allMemtables []Memtable
+func LoadAllMemtables(config config.Config) []*Memtable {
+	var allMemtables []*Memtable
 	for i := 0; i < config.NumberOfMemtables; i++ {
-		allMemtables = append(allMemtables, *MemtableConstructor(config))
+		allMemtables = append(allMemtables, MemtableConstructor(config))
 	}
-	return &allMemtables
+	return allMemtables
 }
 
 func (mt *Memtable) Search(key string) *record.Record {
@@ -107,13 +106,6 @@ func (mt *Memtable) Delete(record record.Record) {
 		mt.bTree.SearchForInsertion(record.Key, record)
 	}
 	mt.SizeOfRecordsInWal += len(record.ToBytes())
-}
-
-func (mt *Memtable) PrintMemtableRecords() {
-	allRecords := mt.skiplist.GetRecords()
-	for i := 0; i < len(allRecords); i++ {
-		fmt.Println(allRecords[i])
-	}
 }
 
 func (mt *Memtable) Flush() []record.Record {

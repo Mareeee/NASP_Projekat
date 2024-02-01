@@ -342,7 +342,7 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 			fmt.Println("Error reading file: ", err)
 			continue
 		}
-
+		fmt.Println("w1vrwbgewg1")
 		f.Seek(0, 0)
 		f.Write(data)
 

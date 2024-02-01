@@ -5,20 +5,17 @@ import (
 	"main/record"
 )
 
-// Struktura koja reprezentuje kes
 type Cache struct {
 	data   map[string]record.Record
 	config config.Config
 }
 
-// Kreiranje novog kesa
 func NewCache(config config.Config) *Cache {
 	return &Cache{
 		data: make(map[string]record.Record),
 	}
 }
 
-// Dodavanje novog para kljuc-vrednost u kes
 func (c *Cache) Set(key string, record record.Record) {
 	// Proverava se da li je pun kes
 	if len(c.data) >= c.config.CacheMaxSize {
