@@ -376,6 +376,90 @@ func (e *Engine) PrefixScan(prefix string, pageNumber, pageSize int) []record.Re
 	return page[:pageSize]
 }
 
+func (e *Engine) RangeScan(minKey, maxKey string, pageNumber, pageSize int) []record.Record {
+	var page []record.Record
+	currentPage := 1
+
+	sstables := allSSTables()
+	var sstablesOffsets []int
+	memtables := e.all_memtables
+	var memtableIndexes []int
+
+	i := 0
+	for i < len(memtables) && len(memtables) != 0 {
+		record, index := memtable.FindMinRangeScanMemtable(memtables[i], minKey, maxKey, e.config.MemtableStructure)
+		if record != nil {
+			page = append(page, *record)
+			memtableIndexes = append(memtableIndexes, index)
+			i++
+		} else {
+			memtables = append(memtables[:i], memtables[i+1:]...)
+		}
+	}
+
+	i = 0
+	for i < len(sstables) && len(sstables) != 0 {
+		record, offset, _ := sstable.FindMinKeyRangeScanSSTable(sstables[i][0], sstables[i][1], minKey, maxKey)
+		if record != nil {
+			page = append(page, *record)
+			sstablesOffsets = append(sstablesOffsets, offset)
+			i++
+		} else {
+			sstables = append(sstables[:i], sstables[i+1:]...)
+		}
+	}
+
+	if len(memtables) == 0 && len(sstables) == 0 {
+		return nil
+	}
+
+	page = sortAndRemoveSame(page)
+
+	if pageNumber == 1 && len(page) >= pageSize {
+		return page[:pageSize]
+	}
+
+	for len(memtables) != 0 && len(sstables) != 0 {
+		i := 0
+		for i < len(memtables) && len(memtables) != 0 {
+			record, index := memtable.GetNextMinRangeScanMemtable(memtables[i], minKey, maxKey, memtableIndexes[i], e.config.MemtableStructure)
+			if record != nil {
+				page = append(page, *record)
+				memtableIndexes = append(memtableIndexes, index)
+				i++
+			} else {
+				memtables = append(memtables[:i], memtables[i+1:]...)
+			}
+		}
+
+		i = 0
+		for i < len(sstables) && len(sstables) != 0 {
+			record, offset, _ := sstable.GetNextMinRangeScanSSTable(sstables[i][0], sstables[i][1], minKey, maxKey, int64(sstablesOffsets[i]))
+			if record != nil {
+				page = append(page, *record)
+				sstablesOffsets = append(sstablesOffsets, offset)
+				i++
+			} else {
+				sstables = append(sstables[:i], sstables[i+1:]...)
+			}
+		}
+
+		page = sortAndRemoveSame(page)
+
+		if len(page) >= pageSize && currentPage == pageNumber {
+			break
+		} else if len(page) >= pageSize && currentPage < pageNumber {
+			currentPage++
+			page = page[pageSize:]
+		} else {
+			continue
+		}
+
+	}
+
+	return page[:pageSize]
+}
+
 func sortAndRemoveSame(page []record.Record) []record.Record {
 	sort.Slice(page, func(i, j int) bool {
 		if page[i].Key != page[j].Key {

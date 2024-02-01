@@ -8,10 +8,9 @@ import (
 	"main/record"
 	"os"
 	"strconv"
-	"strings"
 )
 
-func FindFirstPrefixSSTable(level, sstableNumber int, prefix string) (*record.Record, int, error) {
+func FindMinKeyRangeScanSSTable(level, sstableNumber int, minKey, maxKey string) (*record.Record, int, error) {
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
@@ -20,38 +19,38 @@ func FindFirstPrefixSSTable(level, sstableNumber int, prefix string) (*record.Re
 		return nil, -1, err
 	}
 
-	lastKey, offset, err := loadAndFindIndexOffsetPrefixScan(level, sstableNumber, prefix)
+	lastKey, offset, err := loadAndFindIndexOffsetRangeScan(level, sstableNumber, minKey)
 	if err != nil {
 		return nil, -1, err
 	}
 
-	valueOffset, err := loadAndFindValueOffsetPrefixScan(level, sstableNumber, uint64(offset), prefix, lastKey)
+	valueOffset, err := loadAndFindValueOffsetRangeScan(level, sstableNumber, uint64(offset), minKey, lastKey)
 	if err != nil {
 		return nil, -1, err
 	}
 
-	firstPrefixOffset, err := findFirstPrefixOffset(level, sstableNumber, prefix, uint64(valueOffset))
+	minKeyOffset, err := findMinKeyOffset(level, sstableNumber, minKey, maxKey, uint64(valueOffset))
 	if err != nil {
 		return nil, -1, err
-	} else if firstPrefixOffset == -1 {
+	} else if minKeyOffset == -1 {
 		return nil, -1, err
 	}
 
-	record, err := loadRecordPrefixScan(level, sstableNumber, prefix, uint64(firstPrefixOffset))
+	record, err := loadRecordRangeScan(level, sstableNumber, minKey, maxKey, uint64(minKeyOffset))
 	if err != nil {
 		return nil, -1, err
 	}
 
 	if record != nil {
-		firstPrefixOffset += int64(len(record.ToBytes()))
-		return record, int(firstPrefixOffset), nil
+		minKeyOffset += int64(len(record.ToBytes()))
+		return record, int(minKeyOffset), nil
 	}
 
 	return nil, -1, nil
 }
 
-func GetNextPrefixSSTable(level, sstableNumber int, prefix string, offset int64) (*record.Record, int, error) {
-	record, err := loadRecordPrefixScan(level, sstableNumber, prefix, uint64(offset))
+func GetNextMinRangeScanSSTable(level, sstableNumber int, minKey, maxKey string, offset int64) (*record.Record, int, error) {
+	record, err := loadRecordRangeScan(level, sstableNumber, minKey, maxKey, uint64(offset))
 	if err != nil {
 		return nil, -1, err
 	}
@@ -64,7 +63,7 @@ func GetNextPrefixSSTable(level, sstableNumber int, prefix string, offset int64)
 	return nil, -1, nil
 }
 
-func loadAndFindIndexOffsetPrefixScan(level int, fileNumber int, prefix string) (string, int64, error) {
+func loadAndFindIndexOffsetRangeScan(level, fileNumber int, minKey string) (string, int64, error) {
 	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return "", -1, err
@@ -116,7 +115,7 @@ func loadAndFindIndexOffsetPrefixScan(level int, fileNumber int, prefix string) 
 		}
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
-		if prefix >= getPrefix(firstKey, len(prefix)) && prefix <= getPrefix(lastKey, len(prefix)) {
+		if minKey >= firstKey && minKey <= lastKey {
 			return lastKey, offset, nil
 		}
 
@@ -124,7 +123,7 @@ func loadAndFindIndexOffsetPrefixScan(level int, fileNumber int, prefix string) 
 	}
 }
 
-func loadAndFindValueOffsetPrefixScan(level, fileNumber int, summaryOffset uint64, prefix, lastKey string) (int64, error) {
+func loadAndFindValueOffsetRangeScan(level, fileNumber int, summaryOffset uint64, minKey, lastKey string) (int64, error) {
 	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return -1, err
@@ -162,7 +161,7 @@ func loadAndFindValueOffsetPrefixScan(level, fileNumber int, summaryOffset uint6
 		}
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
-		if prefix > getPrefix(foundKey, len(prefix)) {
+		if minKey >= foundKey {
 			lastReadOffset = offset
 		} else {
 			return lastReadOffset, nil
@@ -178,7 +177,7 @@ func loadAndFindValueOffsetPrefixScan(level, fileNumber int, summaryOffset uint6
 	return lastReadOffset, nil
 }
 
-func loadRecordPrefixScan(level int, fileNumber int, prefix string, valueOffset uint64) (*record.Record, error) {
+func loadRecordRangeScan(level, fileNumber int, minKey, maxKey string, valueOffset uint64) (*record.Record, error) {
 	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return nil, err
@@ -219,17 +218,18 @@ func loadRecordPrefixScan(level int, fileNumber int, prefix string, valueOffset 
 
 	checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
 	if checkCrc32 != crc32 {
+		valueOffset += 29 + uint64(keySize) + uint64(valueSize)
 		return nil, errors.New("CRC doesn't match!")
 	}
 
-	if strings.HasPrefix(loadedKey, prefix) {
+	if loadedKey >= minKey && loadedKey <= maxKey {
 		return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value), nil
 	}
 
 	return nil, nil
 }
 
-func findFirstPrefixOffset(level, fileNumber int, prefix string, valueOffset uint64) (int64, error) {
+func findMinKeyOffset(level, fileNumber int, minKey, maxKey string, valueOffset uint64) (int64, error) {
 	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return -1, err
@@ -275,20 +275,13 @@ func findFirstPrefixOffset(level, fileNumber int, prefix string, valueOffset uin
 			continue
 		}
 
-		if getPrefix(loadedKey, len(prefix)) < prefix {
+		if loadedKey < minKey {
 			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
 			continue
-		} else if getPrefix(loadedKey, len(prefix)) > prefix {
+		} else if loadedKey > maxKey {
 			return -1, nil
 		} else {
 			return int64(valueOffset), nil
 		}
 	}
-}
-
-func getPrefix(key string, length int) string {
-	if len(key) < length {
-		return key
-	}
-	return key[:length]
 }
