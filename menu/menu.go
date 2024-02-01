@@ -57,8 +57,12 @@ func (m *Menu) Start() {
 			case "7":
 				m.SimHashOptions()
 			case "X":
+				record := m.engine.Tbucket.ToBytes()
+				m.engine.Put("tb_", record)
 				os.Exit(0)
 			case "x":
+				record := m.engine.Tbucket.ToBytes()
+				m.engine.Put("tb_", record)
 				os.Exit(0)
 			default:
 				fmt.Println("Invalid option!")

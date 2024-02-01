@@ -43,13 +43,22 @@ func (tb *TokenBucket) WriteTBToFile(filepath string) error {
 	}
 	defer file.Close()
 
-	binary := tb.toBytes()
+	binary := tb.ToBytes()
 	file.Write(binary)
 
 	return nil
 }
 
-func (tb *TokenBucket) toBytes() []byte {
+func (tb *TokenBucket) TBFromBytes(record []byte) *TokenBucket {
+	tb.config.Capacity = binary.BigEndian.Uint64(record[0:8])
+	tb.config.Rate = binary.BigEndian.Uint64(record[8:16])
+	tb.Tokens = binary.BigEndian.Uint64(record[16:24])
+	tb.LastToken = time.Unix(0, int64(binary.LittleEndian.Uint64(record[24:32])))
+
+	return tb
+}
+
+func (tb *TokenBucket) ToBytes() []byte {
 	bufferSize := 24 + len(tb.LastToken.String())
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint64(buffer[0:8], tb.config.Capacity)
