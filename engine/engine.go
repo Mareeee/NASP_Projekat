@@ -294,7 +294,7 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
 			e.Wal.DeleteWalSegmentsEngine(memSize)
 			sstable.NewSSTable(all_records, &e.config, 1)
-			lsm.Compact(&e.config, "Size-tiered")
+			lsm.Compact(&e.config)
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
 		e.all_memtables[e.active_memtable_index].Insert(recordToAdd)

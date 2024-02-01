@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func Compact(cfg *config.Config, compactType string) bool {
+func Compact(cfg *config.Config) bool {
 	SSTablesLvl1 := findSSTable("1")
 	if len(SSTablesLvl1) < 2 {
 		return false
@@ -58,7 +58,7 @@ func SizeTiered(cfg *config.Config) {
 		deleteOldTables(currentLevelSSTables, level)
 		cfg.NumberOfSSTables -= len(currentLevelSSTables) - 1
 		cfg.WriteConfig()
-		sstable.WriteDataIndexSummaryLSM(path, level+1)
+		sstable.WriteDataIndexSummaryLSM(path, level+1, *cfg)
 	}
 }
 

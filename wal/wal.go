@@ -318,7 +318,6 @@ func getPath(numberOfSegment int) string {
 
 func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 	walsToDelete := int(math.Floor(float64(SizeOfRecordsInWal) / float64(w.config.SegmentSize)))
-	fmt.Println(walsToDelete)
 	remainingBytesToTruncate := SizeOfRecordsInWal - int(walsToDelete)*w.config.SegmentSize
 	// slucaj ako brisemo ceo wal
 	if walsToDelete+1 == w.config.NumberOfSegments && remainingBytesToTruncate == w.config.LastSegmentSize {
@@ -328,27 +327,19 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 	}
 	w.DeleteSegments(int(walsToDelete))
 	for i := 1; i <= w.config.NumberOfSegments-1; i++ {
-		f, err := os.OpenFile(getPath(i), os.O_CREATE|os.O_APPEND, 0644)
-		fileInfo, _ := os.Stat(getPath(i))
-
-		size := fileInfo.Size()
-		fmt.Println("file 1 ", size)
+		f, err := os.OpenFile(getPath(i), os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			continue
 		}
-		defer f.Close()
 
 		// shiftovanje byteova na pocetak trenutnog filea
 		remainingFileData := w.getSegmentSize(i) - remainingBytesToTruncate
-		fmt.Println("remainingBytesToTruncate ", remainingBytesToTruncate)
-
 		f.Seek(int64(remainingBytesToTruncate), 0)
 
-		fmt.Println("remainingFileData ", remainingFileData)
 		data := make([]byte, remainingFileData)
 		_, err = f.Read(data)
 		if err != nil {
-			fmt.Println("Error reading file:  1", err)
+			fmt.Println("Error reading file: ", err)
 			continue
 		}
 		fmt.Println("w1vrwbgewg1")
@@ -356,36 +347,35 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 		f.Write(data)
 
 		// uzimanje remainingBytesToTruncate iz sledeceg filea sa pocetka
-		f2, err := os.OpenFile(getPath(i+1), os.O_CREATE|os.O_APPEND, 0644)
+		f2, err := os.OpenFile(getPath(i+1), os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			continue
 		}
-		defer f2.Close()
 
 		var data2 []byte
-		if i+1 == w.config.NumberOfSegments && remainingBytesToTruncate > w.config.LastSegmentSize {
+		if i+1 == w.config.NumberOfSegments &&
+			remainingBytesToTruncate > w.config.LastSegmentSize {
 			data2 = make([]byte, w.config.LastSegmentSize)
 			_, err = f2.Read(data2)
 			if err != nil {
-				fmt.Println("Error reading file:  2", err)
+				fmt.Println("Error reading file: ", err)
 				continue
 			}
 
 			f.Write(data2)
-			bytesToTruncate := remainingBytesToTruncate - w.config.LastSegmentSize
-			previousFilePosition := int64(w.config.SegmentSize - bytesToTruncate)
 			os.Remove(getPath(w.config.NumberOfSegments))
-			f2.Seek(previousFilePosition, 0)
-			os.Truncate(getPath(w.config.NumberOfSegments-1), int64(bytesToTruncate))
+			os.Truncate(getPath(w.config.NumberOfSegments-1), int64(remainingFileData+w.config.LastSegmentSize))
 			w.config.NumberOfSegments--
-			w.config.LastSegmentSize = int(previousFilePosition)
+			w.config.LastSegmentSize = int(remainingFileData + w.config.LastSegmentSize)
 			w.config.WriteConfig()
+			f.Close()
+			f2.Close()
 			return
 		} else {
 			data2 = make([]byte, remainingBytesToTruncate)
 			_, err = f2.Read(data2)
 			if err != nil {
-				fmt.Println("Error reading file:  3", err)
+				fmt.Println("Error reading file: ", err)
 				continue
 			}
 
@@ -395,18 +385,22 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 				data3 := make([]byte, w.config.LastSegmentSize-remainingBytesToTruncate)
 				_, err = f2.Read(data3)
 				if err != nil {
-					fmt.Println("Error reading file:  4", err)
+					fmt.Println("Error reading file: ", err)
 					continue
 				}
 
 				f2.Seek(0, 0)
 				f2.Write(data3)
-				os.Truncate(getPath(w.config.NumberOfSegments), int64(remainingBytesToTruncate))
+				os.Truncate(getPath(w.config.NumberOfSegments), int64(w.config.LastSegmentSize-remainingBytesToTruncate))
 				w.config.LastSegmentSize -= remainingBytesToTruncate
 				w.config.WriteConfig()
+				f.Close()
+				f2.Close()
 				return
 			}
 		}
+		f.Close()
+		f2.Close()
 	}
 }
 
