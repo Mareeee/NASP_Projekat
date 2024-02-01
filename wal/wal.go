@@ -329,6 +329,10 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 	w.DeleteSegments(int(walsToDelete))
 	for i := 1; i <= w.config.NumberOfSegments-1; i++ {
 		f, err := os.OpenFile(getPath(i), os.O_CREATE|os.O_APPEND, 0644)
+		fileInfo, _ := os.Stat(getPath(i))
+
+		size := fileInfo.Size()
+		fmt.Println("file 1 ", size)
 		if err != nil {
 			continue
 		}
@@ -336,18 +340,18 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 
 		// shiftovanje byteova na pocetak trenutnog filea
 		remainingFileData := w.getSegmentSize(i) - remainingBytesToTruncate
-		fmt.Println(remainingBytesToTruncate)
+		fmt.Println("remainingBytesToTruncate ", remainingBytesToTruncate)
 
 		f.Seek(int64(remainingBytesToTruncate), 0)
 
-		fmt.Println(remainingFileData)
+		fmt.Println("remainingFileData ", remainingFileData)
 		data := make([]byte, remainingFileData)
 		_, err = f.Read(data)
 		if err != nil {
 			fmt.Println("Error reading file:  1", err)
 			continue
 		}
-
+		fmt.Println("w1vrwbgewg1")
 		f.Seek(0, 0)
 		f.Write(data)
 
