@@ -13,7 +13,7 @@
   "Capacity": 10,
   "Rate": 2,
   "M": 3,
-  "MaxSize": 10,
+  "MaxSize": 50,
   "MemtableStructure": "btree",
   "NumberOfMemtables": 2,
   "CacheMaxSize": 3

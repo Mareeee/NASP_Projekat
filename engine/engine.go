@@ -282,8 +282,9 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 		e.active_memtable_index = (e.active_memtable_index + 1) % e.config.NumberOfMemtables
 
 		if e.all_memtables[e.active_memtable_index].CurrentSize == e.config.MaxSize {
+			memSize := e.all_memtables[e.active_memtable_index].SizeOfRecordsInWal
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
-			e.Wal.DeleteWalSegmentsEngine(e.all_memtables[e.active_memtable_index].SizeOfRecordsInWal)
+			e.Wal.DeleteWalSegmentsEngine(memSize)
 			sstable.NewSSTable(all_records, &e.config, 1)
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
@@ -350,6 +351,90 @@ func (e *Engine) PrefixScan(prefix string, pageNumber, pageSize int) []record.Re
 		i = 0
 		for i < len(sstables) && len(sstables) != 0 {
 			record, offset, _ := sstable.GetNextPrefixSSTable(sstables[i][0], sstables[i][1], prefix, int64(sstablesOffsets[i]))
+			if record != nil {
+				page = append(page, *record)
+				sstablesOffsets = append(sstablesOffsets, offset)
+				i++
+			} else {
+				sstables = append(sstables[:i], sstables[i+1:]...)
+			}
+		}
+
+		page = sortAndRemoveSame(page)
+
+		if len(page) >= pageSize && currentPage == pageNumber {
+			break
+		} else if len(page) >= pageSize && currentPage < pageNumber {
+			currentPage++
+			page = page[pageSize:]
+		} else {
+			continue
+		}
+
+	}
+
+	return page[:pageSize]
+}
+
+func (e *Engine) RangeScan(minKey, maxKey string, pageNumber, pageSize int) []record.Record {
+	var page []record.Record
+	currentPage := 1
+
+	sstables := allSSTables()
+	var sstablesOffsets []int
+	memtables := e.all_memtables
+	var memtableIndexes []int
+
+	i := 0
+	for i < len(memtables) && len(memtables) != 0 {
+		record, index := memtable.FindMinRangeScanMemtable(memtables[i], minKey, maxKey, e.config.MemtableStructure)
+		if record != nil {
+			page = append(page, *record)
+			memtableIndexes = append(memtableIndexes, index)
+			i++
+		} else {
+			memtables = append(memtables[:i], memtables[i+1:]...)
+		}
+	}
+
+	i = 0
+	for i < len(sstables) && len(sstables) != 0 {
+		record, offset, _ := sstable.FindMinKeyRangeScanSSTable(sstables[i][0], sstables[i][1], minKey, maxKey)
+		if record != nil {
+			page = append(page, *record)
+			sstablesOffsets = append(sstablesOffsets, offset)
+			i++
+		} else {
+			sstables = append(sstables[:i], sstables[i+1:]...)
+		}
+	}
+
+	if len(memtables) == 0 && len(sstables) == 0 {
+		return nil
+	}
+
+	page = sortAndRemoveSame(page)
+
+	if pageNumber == 1 && len(page) >= pageSize {
+		return page[:pageSize]
+	}
+
+	for len(memtables) != 0 && len(sstables) != 0 {
+		i := 0
+		for i < len(memtables) && len(memtables) != 0 {
+			record, index := memtable.GetNextMinRangeScanMemtable(memtables[i], minKey, maxKey, memtableIndexes[i], e.config.MemtableStructure)
+			if record != nil {
+				page = append(page, *record)
+				memtableIndexes = append(memtableIndexes, index)
+				i++
+			} else {
+				memtables = append(memtables[:i], memtables[i+1:]...)
+			}
+		}
+
+		i = 0
+		for i < len(sstables) && len(sstables) != 0 {
+			record, offset, _ := sstable.GetNextMinRangeScanSSTable(sstables[i][0], sstables[i][1], minKey, maxKey, int64(sstablesOffsets[i]))
 			if record != nil {
 				page = append(page, *record)
 				sstablesOffsets = append(sstablesOffsets, offset)

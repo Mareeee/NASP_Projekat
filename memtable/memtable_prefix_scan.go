@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func FindFirstPrefixMemtable(m Memtable, prefix string, structure string) (*record.Record, int) {
+func FindFirstPrefixMemtable(m Memtable, prefix, structure string) (*record.Record, int) {
 	index := 0
 
 	var records []record.Record
