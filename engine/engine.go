@@ -8,6 +8,7 @@ import (
 	"main/cache"
 	"main/cms"
 	"main/config"
+	"main/lsm"
 	"main/memtable"
 	"main/record"
 	"main/simhash"
@@ -45,7 +46,6 @@ func (e *Engine) Engine() {
 	e.all_memtables = *memtable.LoadAllMemtables(e.config)
 	e.active_memtable_index = 0
 
-	// TODO: Uradi brisanje WAL-a
 	e.recover()
 }
 
@@ -286,6 +286,7 @@ func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
 			e.Wal.DeleteWalSegmentsEngine(memSize)
 			sstable.NewSSTable(all_records, &e.config, 1)
+			lsm.Compact(&e.config)
 			e.all_memtables[e.active_memtable_index] = *memtable.MemtableConstructor(e.config)
 		}
 		e.all_memtables[e.active_memtable_index].Insert(recordToAdd)

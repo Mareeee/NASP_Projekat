@@ -7,7 +7,7 @@
   "SegmentSize": 512,
   "LastSegmentSize": 0,
   "MaxHeight": 5,
-  "NumberOfSSTables": 1,
+  "NumberOfSSTables": 0,
   "IndexInterval": 2,
   "SummaryInterval": 2,
   "Capacity": 10,
@@ -16,5 +16,6 @@
   "MaxSize": 50,
   "MemtableStructure": "btree",
   "NumberOfMemtables": 2,
-  "CacheMaxSize": 3
+  "CacheMaxSize": 3,
+  "CompactType" : "level"
 }
