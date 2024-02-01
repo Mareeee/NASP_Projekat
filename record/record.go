@@ -44,8 +44,8 @@ func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, va
 	}
 }
 
-func LoadRecordFromFile(file os.File) (Record, error) {
-	var record Record
+func LoadRecordFromFile(file os.File) (*Record, error) {
+	var record *Record
 
 	CRCBytes := make([]byte, 4)
 	_, err := file.Read(CRCBytes)
@@ -66,23 +66,37 @@ func LoadRecordFromFile(file os.File) (Record, error) {
 	file.Read(keySizeBytes)
 	record.KeySize = int64(binary.BigEndian.Uint64(keySizeBytes))
 
-	valueSizeBytes := make([]byte, 8)
-	file.Read(valueSizeBytes)
-	record.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
+	if !record.Tombstone {
+		valueSizeBytes := make([]byte, 8)
+		file.Read(valueSizeBytes)
+		record.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
 
-	keyBytes := make([]byte, record.KeySize)
-	file.Read(keyBytes)
-	record.Key = string(keyBytes)
+		keyBytes := make([]byte, record.KeySize)
+		file.Read(keyBytes)
+		record.Key = string(keyBytes)
 
-	valueBytes := make([]byte, record.ValueSize)
-	file.Read(valueBytes)
-	record.Value = valueBytes
+		valueBytes := make([]byte, record.ValueSize)
+		file.Read(valueBytes)
+		record.Value = valueBytes
+	} else {
+		record.ValueSize = 0
+
+		keyBytes := make([]byte, record.KeySize)
+		file.Read(keyBytes)
+		record.Key = string(keyBytes)
+
+		record.Value = nil
+	}
+	checkCrc32 := CalculateCRC(record.Timestamp, record.Tombstone, record.KeySize, record.ValueSize, record.Key, record.Value)
+	if checkCrc32 != record.Crc32 {
+		return nil, nil
+	}
 
 	return record, nil
 }
 
-func LoadAllRecordsFromFiles(filePaths []*os.File) []Record {
-	var allRecords []Record
+func LoadAllRecordsFromFiles(filePaths []*os.File) []*Record {
+	var allRecords []*Record
 
 	for i := 0; i < len(filePaths); i++ {
 		record, _ := LoadRecordFromFile(*filePaths[i])
@@ -203,6 +217,6 @@ func GetNewerRecord(record1, record2 Record) Record {
 	}
 }
 
-func IsSimilar(rec Record, target Record) bool {
+func IsSimilar(rec *Record, target *Record) bool {
 	return rec.Crc32 == target.Crc32 && rec.Timestamp == target.Timestamp && rec.Tombstone == target.Tombstone && rec.KeySize == target.KeySize && rec.ValueSize == target.ValueSize && rec.Key == target.Key && string(rec.Value) == string(target.Value)
 }

@@ -99,11 +99,8 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
 		}
 		count++
-		if !record.Tombstone {
-			offset += len(record.ToBytes())
-		} else {
-			offset += 21 + int(record.KeySize)
-		}
+		offset += len(record.ToBytesSSTable())
+
 	}
 
 	s.writeIndex(index, level)
@@ -493,7 +490,7 @@ func (s *SSTable) WriteRecord(record record.Record, filepath string) {
 	}
 }
 
-func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
+func WriteIndexSummaryLSM(path string, level int, cfg config.Config) {
 	dataFile, err := os.Open(path)
 	if err != nil {
 		return
@@ -542,8 +539,8 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
 
 		}
 		count++
-		indexOffset += len(record.ToBytes())
-		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+		indexOffset += len(record.ToBytesSSTable())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable())
 	}
 
 	mt := merkle.NewMerkleTree(allRecordsBytes)
