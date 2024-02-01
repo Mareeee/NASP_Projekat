@@ -1,13 +1,13 @@
 package engine
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"main/bloom-filter"
 	"main/cache"
 	"main/cms"
 	"main/config"
+	hll "main/hyperloglog"
 	"main/lsm"
 	"main/memtable"
 	"main/record"
@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Engine struct {
@@ -144,6 +143,8 @@ func (e *Engine) Delete(key string) error {
 	return nil
 }
 
+// bloomfilter options
+
 func (e *Engine) BloomFilterCreateNewInstance(key string) {
 	bloomFilter := bloom.NewBloomFilterMenu(100, 95.0)
 	value := bloomFilter.ToBytes()
@@ -168,6 +169,77 @@ func (e *Engine) BloomFilterCheckElement(key, element string) {
 		fmt.Println(bloomFilter.CheckElement(element))
 	}
 }
+
+// hyperloglog options
+
+func (e *Engine) HLLCreateNewInstance(key string) {
+	hloglog := hll.NewHyperLogLog(4)
+	data := hloglog.ToBytes()
+	e.Put("hll_"+key, data)
+}
+
+func (e *Engine) HLLDeleteInstance(key string) {
+	if strings.HasPrefix(key, "hll_") {
+		e.Delete(key)
+	} else {
+		fmt.Println("Such HyperLogLog doesn't exist")
+	}
+}
+
+func (e *Engine) HLLAddElement(keyhll, key string) {
+	record := e.Get(keyhll)
+	//hyperloglog not found
+	if record != nil && strings.HasPrefix(keyhll, "hll_") {
+		data := record.Value
+		hloglog := hll.LoadingHLL(data)
+		//adding a key
+		hloglog.AddElement(key)
+		e.Put(keyhll, hloglog.ToBytes())
+	} else {
+		fmt.Println("Such HyperLogLog doesn't exist")
+	}
+}
+
+func (e *Engine) HLLCardinality(key string) {
+	record := e.Get(key)
+	//hyperloglog not found
+	if record != nil && strings.HasPrefix(key, "hll_") {
+		data := record.Value
+		hloglog := hll.LoadingHLL(data)
+		estimation := hloglog.Estimate()
+		fmt.Println("The estimation of unique element is: ", estimation)
+	} else {
+		fmt.Println("Such HyperLogLog doesn't exist")
+	}
+}
+
+// 	cms options
+
+func (e *Engine) CMSCreateNewInstance(key string) {
+	cms := new(cms.CountMinSketch)
+	cms.NewCountMinSketch(0.1, 0.1)
+	e.Put("cms_"+key, cms.ToBytes())
+}
+
+func (e *Engine) CMSAddElement(key, value string) {
+	record := e.Get(key)
+	if record != nil && strings.HasPrefix(key, "cms_") {
+		cms := *cms.LoadCMS(record.Value)
+		cms.AddElement(value)
+		e.Put(record.Key, cms.ToBytes())
+	}
+}
+
+func (e *Engine) CMSCheckFrequency(key, value string) {
+	record := e.Get(key)
+	if record != nil && strings.HasPrefix(key, "cms_") {
+		cms := *cms.LoadCMS(record.Value)
+		fmt.Println(cms.NumberOfRepetitions(value))
+		e.Put(record.Key, cms.ToBytes())
+	}
+}
+
+// simhash options
 
 func (e *Engine) CalculateFingerprintSimHash(key string, text string) error {
 	fingerprint := simhash.CalculateFingerprint(text)
@@ -209,71 +281,6 @@ func (e *Engine) recover() error {
 	}
 
 	return nil
-}
-
-func (e *Engine) CmsUsage() {
-	fmt.Println("1 - Create new cms.")
-	fmt.Println("2 - Add new element")
-	fmt.Println("3 - Delete cms")
-	fmt.Println("4 - Check frequency of element")
-
-	fmt.Print("Input option: ")
-	optionScanner := bufio.NewScanner(os.Stdin)
-	optionScanner.Scan()
-	option := optionScanner.Text()
-	if e.Tbucket.Take() {
-		switch option {
-		case "1":
-			fmt.Print("Input key: ")
-			keyScanner := bufio.NewScanner(os.Stdin)
-			keyScanner.Scan()
-			key := optionScanner.Text()
-			cms := new(cms.CountMinSketch)
-			cms.NewCountMinSketch(0.1, 0.1)
-			e.Put("cms_"+key, cms.ToBytes())
-
-		case "2":
-			fmt.Print("Input key: ")
-			keyScanner := bufio.NewScanner(os.Stdin)
-			keyScanner.Scan()
-			key := optionScanner.Text()
-			record := e.Get(key)
-			if record != nil && strings.HasPrefix(key, "cms_") {
-				cms := *cms.LoadCMS(record.Value)
-				fmt.Print("Input value: ")
-				valueScanner := bufio.NewScanner(os.Stdin)
-				valueScanner.Scan()
-				value := valueScanner.Text()
-				cms.AddElement(value)
-				e.Put(record.Key, cms.ToBytes())
-			}
-
-		case "3":
-			fmt.Print("Input key: ")
-			keyScanner := bufio.NewScanner(os.Stdin)
-			keyScanner.Scan()
-			key := optionScanner.Text()
-			e.Delete(key)
-		case "4":
-			fmt.Print("Input key: ")
-			keyScanner := bufio.NewScanner(os.Stdin)
-			keyScanner.Scan()
-			key := optionScanner.Text()
-			record := e.Get(key)
-			if record != nil && strings.HasPrefix(key, "cms_") {
-				cms := *cms.LoadCMS(record.Value)
-				fmt.Print("Input value: ")
-				valueScanner := bufio.NewScanner(os.Stdin)
-				valueScanner.Scan()
-				value := valueScanner.Text()
-				fmt.Println(cms.NumberOfRepetitions(value))
-				e.Put(record.Key, cms.ToBytes())
-			}
-		}
-	} else {
-		fmt.Println("Rate limit exceeded. Waiting...")
-		time.Sleep(time.Second)
-	}
 }
 
 func (e *Engine) AddRecordToMemtable(recordToAdd record.Record) {
