@@ -19,18 +19,18 @@ type Node struct {
 	right *Node
 }
 
-func (n *Node) String() string {
+func (n *Node) string() string {
 	return hex.EncodeToString(n.data[:])
 }
 
-func Hash(data []byte) [20]byte {
+func hash(data []byte) [20]byte {
 	return sha1.Sum(data)
 }
 
 func NewMerkleTree(data [][]byte) *MerkleTree {
 	var nodes []*Node
 	for _, d := range data {
-		node := &Node{data: Hash(d)}
+		node := &Node{data: hash(d)}
 		nodes = append(nodes, node)
 	}
 	for len(nodes) > 1 {
@@ -42,7 +42,7 @@ func NewMerkleTree(data [][]byte) *MerkleTree {
 				right = nodes[i+1]
 			}
 			parent := &Node{
-				data:  Hash(append(left.data[:], right.data[:]...)),
+				data:  hash(append(left.data[:], right.data[:]...)),
 				left:  left,
 				right: right,
 			}
@@ -59,7 +59,7 @@ func SerializeMerkleTree(node *Node) string {
 		return ""
 	}
 
-	serialized := node.String()
+	serialized := node.string()
 
 	leftSerialized := SerializeMerkleTree(node.left)
 	rightSerialized := SerializeMerkleTree(node.right)
@@ -110,7 +110,7 @@ func CompareMerkleTrees(node1 *Node, node2 *Node) bool {
 		return false
 	}
 
-	if node1.String() != node2.String() {
+	if node1.string() != node2.string() {
 		return false
 	}
 
@@ -123,13 +123,12 @@ func CompareMerkleTrees(node1 *Node, node2 *Node) bool {
 }
 
 func PrintTree(node *Node, indent string) {
-
 	if node == nil {
 		return
 	}
 
 	// Ispisi čvor na trenutnom nivou
-	fmt.Println(indent + node.String())
+	fmt.Println(indent + node.string())
 
 	// Rekurzivno ispisi levo i desno podstablo
 	PrintTree(node.left, indent+"  ")

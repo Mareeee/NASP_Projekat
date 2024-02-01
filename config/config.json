@@ -7,7 +7,7 @@
   "SegmentSize": 512,
   "LastSegmentSize": 0,
   "MaxHeight": 5,
-  "NumberOfSSTables": 0,
+  "NumberOfSSTables": 1,
   "IndexInterval": 2,
   "SummaryInterval": 2,
   "Capacity": 10,

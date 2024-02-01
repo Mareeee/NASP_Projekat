@@ -59,8 +59,7 @@ func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
 		return nil, errors.New("data has been altered")
 	}
 
-	bf := new(bloom.BloomFilter)
-	bf.LoadBloomFilter(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
+	bf := bloom.LoadBloomFilter(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
 
 	sst := new(SSTable)
 	sst.filter = bf
@@ -84,100 +83,6 @@ func NewSSTable(allRecords []record.Record, config *config.Config, level int) (*
 	}
 
 	return sst, nil
-}
-
-func WriteDataIndexSummaryLSM(path string, level int) {
-	dataFile, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer dataFile.Close()
-
-	sstableIndex := strings.Split(strings.Split(path, "_")[4], ".")[0]
-	prefix := config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level)
-
-	indexFile, err := os.OpenFile(prefix+"_sstable_index_"+sstableIndex+".db", os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return
-	}
-	defer indexFile.Close()
-
-	summaryFile, err := os.OpenFile(prefix+"_sstable_summary_"+sstableIndex+".db", os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return
-	}
-	defer summaryFile.Close()
-
-	filterFile, err := os.OpenFile(prefix+"_sstable_filter_"+sstableIndex+".bin", os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return
-	}
-	defer filterFile.Close()
-
-	count := 0
-	indexOffset := 0
-	var index []IndexEntry
-	var allRecordsBytes [][]byte
-
-	for {
-		record, err := record.LoadRecordFromFile(*dataFile)
-		if err != nil {
-			break // procitali smo sve rekorde
-		}
-
-		if count%config.CONFIG_INDEX_INTERVAL == 0 {
-			index = append(index, IndexEntry{key: record.Key, offset: int64(indexOffset)})
-			keyBytes := []byte(record.Key)
-
-			binary.Write(indexFile, binary.BigEndian, int64(len(keyBytes)))
-			indexFile.Write(keyBytes)
-			binary.Write(indexFile, binary.BigEndian, int64(indexOffset))
-
-		}
-		count++
-		indexOffset += len(record.ToBytes())
-		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
-	}
-
-	mt := merkle.NewMerkleTree(allRecordsBytes)
-	mt.WriteToBinFile(prefix + "_sstable_metadata_" + sstableIndex + ".bin")
-
-	summaryOffset := 0
-
-	for i := 0; i < len(index); i += config.CONFIG_SUMMARY_INTERVAL {
-		endIndex := i + config.CONFIG_SUMMARY_INTERVAL - 1
-
-		if endIndex >= len(index) {
-			endIndex = len(index) - 1
-		}
-
-		firstKeyBytes := []byte(index[i].key)
-		lastKeyBytes := []byte(index[endIndex].key)
-
-		binary.Write(summaryFile, binary.BigEndian, int64(len(firstKeyBytes)))
-		summaryFile.Write(firstKeyBytes)
-
-		binary.Write(summaryFile, binary.BigEndian, int64(len(lastKeyBytes)))
-		summaryFile.Write(lastKeyBytes)
-
-		binary.Write(summaryFile, binary.BigEndian, int64(summaryOffset))
-
-		summaryOffset = 16 + len([]byte(index[i].key))
-	}
-
-	bf := new(bloom.BloomFilter)
-	bf.NewBloomFilter(count, 0.01)
-
-	for {
-		record, err := record.LoadRecordFromFile(*dataFile)
-		if err != nil {
-			break // procitali smo sve rekorde
-		}
-		bf.AddElement(record.Key)
-	}
-
-	filterFile.Write(bf.ToBytes())
-
 }
 
 func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
@@ -529,8 +434,7 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.
 }
 
 func (s *SSTable) createFilter(allRecords []record.Record, level int) {
-	s.filter = new(bloom.BloomFilter)
-	s.filter.NewBloomFilter(len(allRecords), 0.01)
+	s.filter = bloom.NewBloomFilter(len(allRecords), 0.01)
 
 	for _, record := range allRecords {
 		s.filter.AddElement(record.Key)
@@ -563,3 +467,103 @@ func (s *SSTable) WriteRecord(record record.Record, filepath string) {
 		fmt.Println("Error writing record to file:", writeErr)
 	}
 }
+
+func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
+	dataFile, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer dataFile.Close()
+
+	sstableIndex := strings.Split(strings.Split(path, "_")[4], ".")[0]
+	prefix := config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level)
+
+	indexFile, err := os.OpenFile(prefix+"_sstable_index_"+sstableIndex+".db", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer indexFile.Close()
+
+	summaryFile, err := os.OpenFile(prefix+"_sstable_summary_"+sstableIndex+".db", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer summaryFile.Close()
+
+	filterFile, err := os.OpenFile(prefix+"_sstable_filter_"+sstableIndex+".bin", os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer filterFile.Close()
+
+	count := 0
+	indexOffset := 0
+	var index []IndexEntry
+	var allRecordsBytes [][]byte
+
+	for {
+		record, err := record.LoadRecordFromFile(*dataFile)
+		if err != nil {
+			break // procitali smo sve rekorde
+		}
+
+		if count%cfg.IndexInterval == 0 {
+			index = append(index, IndexEntry{key: record.Key, offset: int64(indexOffset)})
+			keyBytes := []byte(record.Key)
+
+			binary.Write(indexFile, binary.BigEndian, int64(len(keyBytes)))
+			indexFile.Write(keyBytes)
+			binary.Write(indexFile, binary.BigEndian, int64(indexOffset))
+
+		}
+		count++
+		indexOffset += len(record.ToBytes())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+	}
+
+	mt := merkle.NewMerkleTree(allRecordsBytes)
+	mt.WriteToBinFile(prefix + "_sstable_metadata_" + sstableIndex + ".bin")
+
+	summaryOffset := 0
+
+	for i := 0; i < len(index); i += cfg.SummaryInterval {
+		endIndex := i + cfg.SummaryInterval - 1
+
+		if endIndex >= len(index) {
+			endIndex = len(index) - 1
+		}
+
+		firstKeyBytes := []byte(index[i].key)
+		lastKeyBytes := []byte(index[endIndex].key)
+
+		binary.Write(summaryFile, binary.BigEndian, int64(len(firstKeyBytes)))
+		summaryFile.Write(firstKeyBytes)
+
+		binary.Write(summaryFile, binary.BigEndian, int64(len(lastKeyBytes)))
+		summaryFile.Write(lastKeyBytes)
+
+		binary.Write(summaryFile, binary.BigEndian, int64(summaryOffset))
+
+		summaryOffset = 16 + len([]byte(index[i].key))
+	}
+
+	bf := bloom.NewBloomFilter(count, 0.01)
+
+	dataFile, err = os.Open(path)
+	if err != nil {
+		return
+	}
+	defer dataFile.Close()
+
+	for {
+		record, err := record.LoadRecordFromFile(*dataFile)
+		if err != nil {
+			break // procitali smo sve rekorde
+		}
+		bf.AddElement(record.Key)
+	}
+
+	filterFile.Write(bf.ToBytes())
+}
+
+// TODO: da se u lsm racuna broj rekorad i na osnovu toga pravi sstabela

@@ -51,11 +51,11 @@ func (hll *HLL) Estimate() float64 {
 	alpha := 0.7213 / (1.0 + 1.079/float64(hll.m))
 	estimation := alpha * math.Pow(float64(hll.m), 2.0) / sum
 	emptyRegs := hll.emptyCount()
-	if estimation <= 2.5*float64(hll.m) { // do small range correction
+	if estimation <= 2.5*float64(hll.m) {
 		if emptyRegs > 0 {
 			estimation = float64(hll.m) * math.Log(float64(hll.m)/float64(emptyRegs))
 		}
-	} else if estimation > 1/30.0*math.Pow(2.0, 32.0) { // do large range correction
+	} else if estimation > 1/30.0*math.Pow(2.0, 32.0) {
 		estimation = -math.Pow(2.0, 32.0) * math.Log(1.0-estimation/math.Pow(2.0, 32.0))
 	}
 	return estimation
@@ -134,7 +134,7 @@ func (hll *HLL) LoadHLL() error {
 	return nil
 }
 
-func LoadingHLL(data []byte) *HLL {
+func LoadHLL(data []byte) *HLL {
 	hll := new(HLL)
 	hll.m = binary.BigEndian.Uint64(data[0:8])
 
@@ -155,7 +155,6 @@ func LoadingHLL(data []byte) *HLL {
 
 func Hash(data []byte) uint64 {
 	hash := md5.Sum(data)
-	// Convert the first 8 bytes of the hash to a uint64 in big-endian order
 	hashUint := binary.BigEndian.Uint64(hash[:8])
 
 	return hashUint
