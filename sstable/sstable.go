@@ -106,6 +106,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 		} else {
 			offset += 21 + int(record.KeySize)
 		}
+
 	}
 
 	s.writeIndex(index, level)
@@ -637,8 +638,8 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 
 		}
 		count++
-		indexOffset += len(record.ToBytes())
-		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+		indexOffset += len(record.ToBytesSSTable())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable())
 	}
 
 	mt := merkle.NewMerkleTree(allRecordsBytes)

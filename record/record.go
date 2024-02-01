@@ -45,8 +45,8 @@ func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, va
 	}
 }
 
-func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (Record, error) {
-	var record Record
+func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (*Record, error) {
+	var record *Record
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
@@ -69,28 +69,42 @@ func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (Record, er
 	file.Read(keySizeBytes)
 	record.KeySize = int64(binary.BigEndian.Uint64(keySizeBytes))
 
-	valueSizeBytes := make([]byte, 8)
-	file.Read(valueSizeBytes)
-	record.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
+	if !record.Tombstone {
+		valueSizeBytes := make([]byte, 8)
+		file.Read(valueSizeBytes)
+		record.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
 
-	keyBytes := make([]byte, record.KeySize)
-	file.Read(keyBytes)
-	if cfg.Compact {
-		index := binary.BigEndian.Uint64(keyBytes)
-		record.Key = (*keyDictionary)[int(index)]
+		keyBytes := make([]byte, record.KeySize)
+		file.Read(keyBytes)
+		if cfg.Compact {
+			index := binary.BigEndian.Uint64(keyBytes)
+			record.Key = (*keyDictionary)[int(index)]
+		} else {
+			record.Key = string(keyBytes)
+		}
+
+		valueBytes := make([]byte, record.ValueSize)
+		file.Read(valueBytes)
+		record.Value = valueBytes
 	} else {
-		record.Key = string(keyBytes)
-	}
+		record.ValueSize = 0
 
-	valueBytes := make([]byte, record.ValueSize)
-	file.Read(valueBytes)
-	record.Value = valueBytes
+		keyBytes := make([]byte, record.KeySize)
+		file.Read(keyBytes)
+		record.Key = string(keyBytes)
+
+		record.Value = nil
+	}
+	checkCrc32 := CalculateCRC(record.Timestamp, record.Tombstone, record.KeySize, record.ValueSize, record.Key, record.Value)
+	if checkCrc32 != record.Crc32 {
+		return nil, nil
+	}
 
 	return record, nil
 }
 
-func LoadAllRecordsFromFiles(filePaths []*os.File, keyDictionary *map[int]string) []Record {
-	var allRecords []Record
+func LoadAllRecordsFromFiles(filePaths []*os.File, keyDictionary *map[int]string) []*Record {
+	var allRecords []*Record
 
 	for i := 0; i < len(filePaths); i++ {
 		record, _ := LoadRecordFromFile(*filePaths[i], keyDictionary)
@@ -211,6 +225,6 @@ func GetNewerRecord(record1, record2 Record) Record {
 	}
 }
 
-func IsSimilar(rec Record, target Record) bool {
+func IsSimilar(rec *Record, target *Record) bool {
 	return rec.Crc32 == target.Crc32 && rec.Timestamp == target.Timestamp && rec.Tombstone == target.Tombstone && rec.KeySize == target.KeySize && rec.ValueSize == target.ValueSize && rec.Key == target.Key && string(rec.Value) == string(target.Value)
 }
