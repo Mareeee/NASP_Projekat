@@ -170,6 +170,31 @@ func (r Record) ToBytes() []byte {
 	return buffer
 }
 
+func (r Record) ToBytesSSTable() []byte {
+	var bufferSize int64
+	if r.Tombstone {
+		bufferSize = 21 + r.KeySize
+		r.Crc32 = CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, 0, r.Key, nil)
+	} else {
+		bufferSize = 29 + r.KeySize + r.ValueSize
+	}
+	buffer := make([]byte, bufferSize)
+	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.Crc32))
+	binary.BigEndian.PutUint64(buffer[4:12], uint64(r.Timestamp))
+	buffer[12] = 0
+	if r.Tombstone {
+		buffer[12] = 1
+		binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+		copy(buffer[21:21+r.KeySize], []byte(r.Key))
+		return buffer
+	}
+	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.ValueSize))
+	copy(buffer[29:29+r.KeySize], []byte(r.Key))
+	copy(buffer[29+r.KeySize:bufferSize], r.Value)
+	return buffer
+}
+
 func GetNewerRecord(record1, record2 Record) Record {
 	if record1.Timestamp > record2.Timestamp {
 		return record1

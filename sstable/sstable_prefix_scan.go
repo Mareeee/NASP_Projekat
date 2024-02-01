@@ -43,7 +43,11 @@ func FindFirstPrefixSSTable(level, sstableNumber int, prefix string) (*record.Re
 	}
 
 	if record != nil {
-		firstPrefixOffset += int64(len(record.ToBytes()))
+		if !record.Tombstone {
+			firstPrefixOffset += int64(len(record.ToBytes()))
+		} else {
+			firstPrefixOffset += 21 + int64(record.KeySize)
+		}
 		return record, int(firstPrefixOffset), nil
 	}
 
@@ -57,7 +61,11 @@ func GetNextPrefixSSTable(level, sstableNumber int, prefix string, offset int64)
 	}
 
 	if record != nil {
-		offset += int64(len(record.ToBytes()))
+		if !record.Tombstone {
+			offset += int64(len(record.ToBytes()))
+		} else {
+			offset += 21 + int64(record.KeySize)
+		}
 		return record, int(offset), nil
 	}
 
@@ -190,7 +198,7 @@ func loadRecordPrefixScan(level int, fileNumber int, prefix string, valueOffset 
 		return nil, seekErr
 	}
 
-	headerBytes := make([]byte, 29)
+	headerBytes := make([]byte, 21)
 	_, readErr := f.Read(headerBytes)
 	if readErr == io.EOF {
 		return nil, readErr
@@ -202,7 +210,17 @@ func loadRecordPrefixScan(level int, fileNumber int, prefix string, valueOffset 
 	timestamp := int64(binary.BigEndian.Uint64(headerBytes[4:12]))
 	tombstone := headerBytes[12] != 0
 	keySize := int64(binary.BigEndian.Uint64(headerBytes[13:21]))
-	valueSize := int64(binary.BigEndian.Uint64(headerBytes[21:29]))
+	var valueSize int64 = 0
+	if !tombstone {
+		extraBytes := make([]byte, 8)
+		_, readErr := f.Read(extraBytes)
+		if readErr == io.EOF {
+			return nil, readErr
+		} else if readErr != nil {
+			return nil, readErr
+		}
+		valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+	}
 
 	keyBytes := make([]byte, keySize)
 	_, readErr = f.Read(keyBytes)
@@ -211,10 +229,13 @@ func loadRecordPrefixScan(level int, fileNumber int, prefix string, valueOffset 
 	}
 	loadedKey := string(keyBytes)
 
-	value := make([]byte, valueSize)
-	_, readErr = f.Read(value)
-	if readErr != nil {
-		return nil, readErr
+	var value []byte = nil
+	if !tombstone {
+		value = make([]byte, valueSize)
+		_, readErr = f.Read(value)
+		if readErr != nil {
+			return nil, readErr
+		}
 	}
 
 	checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
@@ -242,7 +263,7 @@ func findFirstPrefixOffset(level, fileNumber int, prefix string, valueOffset uin
 			return -1, seekErr
 		}
 
-		headerBytes := make([]byte, 29)
+		headerBytes := make([]byte, 21)
 		_, readErr := f.Read(headerBytes)
 		if readErr == io.EOF {
 			return -1, readErr
@@ -254,7 +275,17 @@ func findFirstPrefixOffset(level, fileNumber int, prefix string, valueOffset uin
 		timestamp := int64(binary.BigEndian.Uint64(headerBytes[4:12]))
 		tombstone := headerBytes[12] != 0
 		keySize := int64(binary.BigEndian.Uint64(headerBytes[13:21]))
-		valueSize := int64(binary.BigEndian.Uint64(headerBytes[21:29]))
+		var valueSize int64 = 0
+		if !tombstone {
+			extraBytes := make([]byte, 8)
+			_, readErr := f.Read(extraBytes)
+			if readErr == io.EOF {
+				return -1, readErr
+			} else if readErr != nil {
+				return -1, readErr
+			}
+			valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+		}
 
 		keyBytes := make([]byte, keySize)
 		_, readErr = f.Read(keyBytes)
@@ -263,20 +294,31 @@ func findFirstPrefixOffset(level, fileNumber int, prefix string, valueOffset uin
 		}
 		loadedKey := string(keyBytes)
 
-		value := make([]byte, valueSize)
-		_, readErr = f.Read(value)
-		if readErr != nil {
-			return -1, readErr
+		var value []byte = nil
+		if !tombstone {
+			value = make([]byte, valueSize)
+			_, readErr = f.Read(value)
+			if readErr != nil {
+				return -1, readErr
+			}
 		}
 
 		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
 		if checkCrc32 != crc32 {
-			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			if !tombstone {
+				valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			} else {
+				valueOffset += 21 + uint64(keySize)
+			}
 			continue
 		}
 
 		if getPrefix(loadedKey, len(prefix)) < prefix {
-			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			if !tombstone {
+				valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			} else {
+				valueOffset += 21 + uint64(keySize)
+			}
 			continue
 		} else if getPrefix(loadedKey, len(prefix)) > prefix {
 			return -1, nil
