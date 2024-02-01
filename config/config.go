@@ -32,6 +32,7 @@ const (
 	CONFIG_COMPACT_BY          = "byte"
 	CONFIG_MAX_BYTES_SSTABLES  = 128
 	CONFIG_COMPACT_TYPE        = "size_tiered"
+	CONFIG_COMPACT             = false
 )
 
 type Config struct {
@@ -63,6 +64,8 @@ type Config struct {
 	NumberOfMemtables int    `json:"NumberOfMemtables"`
 	// cache
 	CacheMaxSize int `json:"CacheMaxSize"`
+	//other
+	Compact bool `json:"Compact"`
 }
 
 func (cfg *Config) checkValidity() {
@@ -139,6 +142,10 @@ func (cfg *Config) checkValidity() {
 		cfg.CompactType = CONFIG_COMPACT_TYPE
 	}
 
+	if cfg.Compact != false && cfg.Compact != true {
+		cfg.Compact = CONFIG_COMPACT
+	}
+
 }
 
 func LoadConfig(cfg *Config) error {
@@ -163,6 +170,7 @@ func LoadConfig(cfg *Config) error {
 		cfg.CompactBy = CONFIG_COMPACT_BY
 		cfg.MaxBytesSSTables = CONFIG_MAX_BYTES_SSTABLES
 		cfg.CompactType = CONFIG_COMPACT_TYPE
+		cfg.Compact = CONFIG_COMPACT
 	} else {
 		err = json.Unmarshal(jsonFile, &cfg)
 		if err != nil {

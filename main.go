@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"main/engine"
 )
 
@@ -16,8 +15,6 @@ func main() {
 	// for i := 0; i < len(records); i++ {
 	// 	engine.Put(records[i].Key, records[i].Value, false)
 	// }
-	rekord := engine.Get("Mare")
-	fmt.Printf("rekord.Value: %v\n", rekord)
 	// meni := menu.Menu{}
 	// meni.Start()
 	// rekordi, _ := wal.LoadAllRecords()

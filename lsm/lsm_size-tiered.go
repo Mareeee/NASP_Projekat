@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func Compact(cfg *config.Config) bool {
+func Compact(cfg *config.Config, keyDictionary *map[int]string) bool {
 	SSTablesLvl1 := findSSTable("1")
 	if len(SSTablesLvl1) < 2 {
 		return false
@@ -20,7 +20,7 @@ func Compact(cfg *config.Config) bool {
 		byteSizeOfCurrentLevelSSTables, _ := calculateSizeOfSSTables(SSTablesLvl1)
 		if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables {
 			if cfg.CompactType == "size_tiered" {
-				SizeTiered(cfg)
+				SizeTiered(cfg, keyDictionary)
 				return true
 			} else if cfg.CompactType == "level" {
 				Level(cfg)
@@ -30,7 +30,7 @@ func Compact(cfg *config.Config) bool {
 	} else if cfg.CompactBy == "amount" {
 		if len(SSTablesLvl1) >= cfg.MaxTabels {
 			if cfg.CompactType == "size_tiered" {
-				SizeTiered(cfg)
+				SizeTiered(cfg, keyDictionary)
 				return true
 			} else if cfg.CompactType == "level" {
 				Level(cfg)
@@ -66,7 +66,7 @@ func Level(cfg *config.Config) {
 	}
 }
 
-func SizeTiered(cfg *config.Config) {
+func SizeTiered(cfg *config.Config, keyDictionary *map[int]string) {
 	var currentLevelSSTables []string
 	// prolazak kroz nivoe sstabela
 	for level := 1; level < cfg.NumberOfLevels; level++ {
@@ -78,13 +78,13 @@ func SizeTiered(cfg *config.Config) {
 		if cfg.CompactBy == "byte" {
 			byteSizeOfCurrentLevelSSTables, _ := calculateSizeOfSSTables(currentLevelSSTables)
 			if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables {
-				SizeTieredMergeSSTables(currentLevelSSTables, path)
+				SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
 			} else {
 				return // nema uslova za kompakciju
 			}
 		} else if cfg.CompactBy == "amount" {
 			if len(currentLevelSSTables) >= cfg.MaxTabels {
-				SizeTieredMergeSSTables(currentLevelSSTables, path)
+				SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
 			} else {
 				return // nema uslova za kompakciju
 			}
@@ -93,7 +93,7 @@ func SizeTiered(cfg *config.Config) {
 		deleteOldTables(currentLevelSSTables, level)
 		cfg.NumberOfSSTables -= len(currentLevelSSTables) - 1
 		cfg.WriteConfig()
-		sstable.WriteDataIndexSummaryLSM(path, level+1, *cfg)
+		sstable.WriteDataIndexSummaryLSM(path, level+1, *cfg, keyDictionary)
 	}
 }
 
@@ -148,7 +148,7 @@ func findSSTable(level string) []string {
 	return currentLevelSSTables
 }
 
-func SizeTieredMergeSSTables(SSTables []string, filepath string) bool {
+func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *map[int]string) bool {
 	SSTableFiles := []*os.File{}
 	dataFile, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
@@ -163,7 +163,7 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string) bool {
 		SSTableFiles = append(SSTableFiles, file)
 	}
 
-	allRecords := record.LoadAllRecordsFromFiles(SSTableFiles)
+	allRecords := record.LoadAllRecordsFromFiles(SSTableFiles, keyDictionary)
 
 	// loop dok postoje podaci
 	for len(SSTableFiles) > 0 {
@@ -171,7 +171,7 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string) bool {
 		for i := 0; i < len(SSTableFiles); i++ {
 			for {
 				if allRecords[i].Tombstone {
-					rekord, err := record.LoadRecordFromFile(*SSTableFiles[i])
+					rekord, err := record.LoadRecordFromFile(*SSTableFiles[i], keyDictionary)
 					if err != nil {
 						// edgecase kada prodjemo kroz sve rekorde iz jedne sstabele
 						allRecords, SSTableFiles = deleteFromArrays(allRecords, SSTableFiles, i)
@@ -195,7 +195,7 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string) bool {
 			return false
 		}
 
-		rekord, err := record.LoadRecordFromFile(*SSTableFiles[index])
+		rekord, err := record.LoadRecordFromFile(*SSTableFiles[index], keyDictionary)
 		if err != nil {
 			allRecords, SSTableFiles = deleteFromArrays(allRecords, SSTableFiles, index)
 		} else {

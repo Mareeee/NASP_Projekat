@@ -3,6 +3,7 @@ package record
 import (
 	"encoding/binary"
 	"hash/crc32"
+	"main/config"
 	"os"
 	"time"
 )
@@ -44,8 +45,10 @@ func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, va
 	}
 }
 
-func LoadRecordFromFile(file os.File) (Record, error) {
+func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (Record, error) {
 	var record Record
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 
 	CRCBytes := make([]byte, 4)
 	_, err := file.Read(CRCBytes)
@@ -72,7 +75,12 @@ func LoadRecordFromFile(file os.File) (Record, error) {
 
 	keyBytes := make([]byte, record.KeySize)
 	file.Read(keyBytes)
-	record.Key = string(keyBytes)
+	if cfg.Compact {
+		index := binary.BigEndian.Uint64(keyBytes)
+		record.Key = (*keyDictionary)[int(index)]
+	} else {
+		record.Key = string(keyBytes)
+	}
 
 	valueBytes := make([]byte, record.ValueSize)
 	file.Read(valueBytes)
@@ -81,11 +89,11 @@ func LoadRecordFromFile(file os.File) (Record, error) {
 	return record, nil
 }
 
-func LoadAllRecordsFromFiles(filePaths []*os.File) []Record {
+func LoadAllRecordsFromFiles(filePaths []*os.File, keyDictionary *map[int]string) []Record {
 	var allRecords []Record
 
 	for i := 0; i < len(filePaths); i++ {
-		record, _ := LoadRecordFromFile(*filePaths[i])
+		record, _ := LoadRecordFromFile(*filePaths[i], keyDictionary)
 		allRecords = append(allRecords, record)
 	}
 

@@ -28,6 +28,7 @@ type Engine struct {
 	Tbucket               tokenbucket.TokenBucket
 	all_memtables         []*memtable.Memtable
 	active_memtable_index int
+	keyDictionary         *map[int]string
 }
 
 // inicijalno pravljenje svih struktura
@@ -37,6 +38,7 @@ func (e *Engine) Engine() {
 		e.config.WriteConfig()
 	}
 
+	// DESERIALIZE KEY DICT
 	// posto lsm nije struktura, zvacemo ga iz package-a
 	e.Cache = *cache.NewCache(e.config)
 	wal, _ := wal.LoadWal(e.config)
@@ -101,7 +103,7 @@ func (e *Engine) Get(key string) *record.Record {
 	}
 
 	//going through sstable
-	record, _ = sstable.Search(key)
+	record, _ = sstable.Search(key, *e.keyDictionary)
 	//we found it in sstable
 	if record != nil && !record.Tombstone {
 		return record
@@ -269,8 +271,8 @@ func (e *Engine) addRecordToMemtable(recordToAdd record.Record) {
 			memSize := e.all_memtables[e.active_memtable_index].SizeOfRecordsInWal
 			all_records := e.all_memtables[e.active_memtable_index].Flush()
 			e.Wal.DeleteWalSegmentsEngine(memSize)
-			sstable.NewSSTable(all_records, &e.config, 1)
-			lsm.Compact(&e.config)
+			sstable.NewSSTable(all_records, &e.config, 1, e.keyDictionary)
+			lsm.Compact(&e.config, e.keyDictionary)
 			e.all_memtables[e.active_memtable_index] = memtable.MemtableConstructor(e.config)
 		}
 		e.all_memtables[e.active_memtable_index].Insert(recordToAdd)

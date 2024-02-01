@@ -16,9 +16,10 @@ import (
 )
 
 type SSTable struct {
-	filter   *bloom.BloomFilter
-	metadata *merkle.MerkleTree
-	config   *config.Config
+	filter        *bloom.BloomFilter
+	metadata      *merkle.MerkleTree
+	config        *config.Config
+	keyDictionary *map[int]string
 }
 
 type IndexEntry struct {
@@ -68,9 +69,10 @@ func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
 	return sst, nil
 }
 
-func NewSSTable(allRecords []record.Record, config *config.Config, level int) (*SSTable, error) {
+func NewSSTable(allRecords []record.Record, config *config.Config, level int, keyDictionary *map[int]string) (*SSTable, error) {
 	sst := new(SSTable)
 	config.NumberOfSSTables++
+	sst.keyDictionary = keyDictionary
 	sst.config = config
 
 	sst.writeDataIndexSummary(allRecords, level)
@@ -93,7 +95,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 
 	for _, record := range allRecords {
 		// ovde se pravi data, upisujem sve rekorde
-		s.WriteRecord(record, config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.config.NumberOfSSTables)+".db")
+		s.WriteRecord(&record, config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.config.NumberOfSSTables)+".db")
 
 		if count%s.config.IndexInterval == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
@@ -209,7 +211,7 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
 	}
 }
 
-func Search(key string) (*record.Record, error) {
+func Search(key string, keyDicitonary map[int]string) (*record.Record, error) {
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
@@ -220,17 +222,17 @@ func Search(key string) (*record.Record, error) {
 		return nil, err
 	}
 
-	lastKey, offset, err := loadAndFindIndexOffset(fileNumber, level, key)
+	lastKey, offset, err := loadAndFindIndexOffset(fileNumber, level, key, &keyDicitonary)
 	if err != nil {
 		return nil, err
 	}
 
-	valueOffset, err := loadAndFindValueOffset(fileNumber, level, uint64(offset), key, lastKey)
+	valueOffset, err := loadAndFindValueOffset(fileNumber, level, uint64(offset), key, lastKey, &keyDicitonary)
 	if err != nil {
 		return nil, err
 	}
 
-	record, err := loadRecord(fileNumber, level, key, uint64(valueOffset))
+	record, err := loadRecord(fileNumber, level, key, uint64(valueOffset), &keyDicitonary)
 	if err != nil {
 		return nil, err
 	}
@@ -269,12 +271,15 @@ func findSSTableNumber(key string, numOfSSTables int) (int, int, error) {
 	return -1, -1, nil
 }
 
-func loadAndFindIndexOffset(fileNumber, level int, key string) (string, int64, error) {
+func loadAndFindIndexOffset(fileNumber, level int, key string, keyDictionary *map[int]string) (string, int64, error) {
 	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return "", -1, err
 	}
 	defer f.Close()
+
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 
 	var initialOffset int64 = 0
 
@@ -298,13 +303,21 @@ func loadAndFindIndexOffset(fileNumber, level int, key string) (string, int64, e
 		if readErr != nil {
 			return "", -1, readErr
 		}
-		firstKey := string(firstKeyBytes)
+
+		var firstKey string
+		if cfg.Compact {
+			index := binary.BigEndian.Uint64(firstKeyBytes)
+			firstKey = (*keyDictionary)[int(index)]
+		} else {
+			firstKey = string(firstKeyBytes)
+		}
 
 		lastKeySizeBytes := make([]byte, 8)
 		_, readErr = f.Read(lastKeySizeBytes)
 		if readErr != nil {
 			return "", -1, readErr
 		}
+
 		lastKeySize := binary.BigEndian.Uint64(lastKeySizeBytes)
 
 		lastKeyBytes := make([]byte, lastKeySize)
@@ -312,7 +325,14 @@ func loadAndFindIndexOffset(fileNumber, level int, key string) (string, int64, e
 		if readErr != nil {
 			return "", -1, readErr
 		}
-		lastKey := string(lastKeyBytes)
+
+		var lastKey string
+		if cfg.Compact {
+			index := binary.BigEndian.Uint64(lastKeyBytes)
+			firstKey = (*keyDictionary)[int(index)]
+		} else {
+			lastKey = string(lastKeyBytes)
+		}
 
 		offsetBytes := make([]byte, 8)
 		_, readErr = f.Read(offsetBytes)
@@ -329,12 +349,15 @@ func loadAndFindIndexOffset(fileNumber, level int, key string) (string, int64, e
 	}
 }
 
-func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key string, lastKey string) (int64, error) {
+func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key string, lastKey string, keyDictionary *map[int]string) (int64, error) {
 	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return -1, err
 	}
 	defer f.Close()
+
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 
 	var lastReadOffset int64
 
@@ -358,7 +381,13 @@ func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key str
 		if readErr != nil {
 			return -1, readErr
 		}
-		foundKey := string(keyBytes)
+		var foundKey string
+		if cfg.Compact {
+			index := binary.BigEndian.Uint64(keyBytes)
+			foundKey = (*keyDictionary)[int(index)]
+		} else {
+			foundKey = string(keyBytes)
+		}
 
 		offsetBytes := make([]byte, 8)
 		_, readErr = f.Read(offsetBytes)
@@ -383,12 +412,15 @@ func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key str
 	return lastReadOffset, nil
 }
 
-func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.Record, error) {
+func loadRecord(fileNumber, level int, key string, valueOffset uint64, keyDictionary *map[int]string) (*record.Record, error) {
 	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
+
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 
 	for {
 		_, seekErr := f.Seek(int64(valueOffset), io.SeekStart)
@@ -425,7 +457,13 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.
 		if readErr != nil {
 			return nil, readErr
 		}
-		loadedKey := string(keyBytes)
+		var loadedKey string
+		if cfg.Compact {
+			index := binary.BigEndian.Uint64(keyBytes)
+			loadedKey = (*keyDictionary)[int(index)]
+		} else {
+			loadedKey = string(keyBytes)
+		}
 
 		var value []byte = nil
 		if !tombstone {
@@ -477,8 +515,65 @@ func (s *SSTable) createMetaData(allRecords []record.Record, level int) {
 	s.metadata.WriteToBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_metadata_" + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
 }
 
-func (s *SSTable) WriteRecord(record record.Record, filepath string) {
-	recordBytes := record.ToBytesSSTable()
+func (s *SSTable) putElementToMap(ogKey string) int {
+	for key, value := range *s.keyDictionary {
+		if value == ogKey {
+			return key
+		}
+	}
+
+	nextKey := 0
+	for key := range *s.keyDictionary {
+		if key >= nextKey {
+			nextKey = key + 1
+		}
+	}
+	(*s.keyDictionary)[nextKey] = ogKey
+
+	return nextKey
+}
+
+func (s *SSTable) ToBytesSSTable(r *record.Record) []byte {
+	var bufferSize int64
+	if r.Tombstone {
+		bufferSize = 21 + r.KeySize
+		r.Crc32 = record.CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, 0, r.Key, nil)
+	} else {
+		bufferSize = 29 + r.KeySize + r.ValueSize
+	}
+	buffer := make([]byte, bufferSize)
+	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.Crc32))
+	binary.BigEndian.PutUint64(buffer[4:12], uint64(r.Timestamp))
+
+	index := s.putElementToMap(r.Key)
+
+	indexBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(indexBytes, uint64(index))
+
+	r.KeySize = int64(len(indexBytes))
+
+	buffer[12] = 0
+	if r.Tombstone {
+		buffer[12] = 1
+		binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+		copy(buffer[21:21+r.KeySize], []byte(r.Key))
+		return buffer
+	}
+	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.ValueSize))
+
+	copy(buffer[29:29+r.KeySize], indexBytes)
+	copy(buffer[29+r.KeySize:bufferSize], r.Value)
+	return buffer
+}
+
+func (s *SSTable) WriteRecord(record *record.Record, filepath string) {
+	var recordBytes []byte
+	if s.config.Compact {
+		recordBytes = s.ToBytesSSTable(record) // TODO: dodati uslov za kompresiju
+	} else {
+		recordBytes = record.ToBytes()
+	}
 
 	f, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
@@ -493,7 +588,7 @@ func (s *SSTable) WriteRecord(record record.Record, filepath string) {
 	}
 }
 
-func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
+func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDictionary *map[int]string) {
 	dataFile, err := os.Open(path)
 	if err != nil {
 		return
@@ -527,7 +622,7 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
 	var allRecordsBytes [][]byte
 
 	for {
-		record, err := record.LoadRecordFromFile(*dataFile)
+		record, err := record.LoadRecordFromFile(*dataFile, keyDictionary)
 		if err != nil {
 			break // procitali smo sve rekorde
 		}
@@ -581,7 +676,7 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
 	defer dataFile.Close()
 
 	for {
-		record, err := record.LoadRecordFromFile(*dataFile)
+		record, err := record.LoadRecordFromFile(*dataFile, keyDictionary)
 		if err != nil {
 			break // procitali smo sve rekorde
 		}
