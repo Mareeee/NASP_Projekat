@@ -16,5 +16,6 @@
   "MaxSize": 80,
   "MemtableStructure": "btree",
   "NumberOfMemtables": 2,
-  "CacheMaxSize": 3
+  "CacheMaxSize": 3,
+  "CompactType" : "level"
 }

@@ -99,7 +99,8 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
 		}
 		count++
-		offset += len(record.ToBytes())
+		offset += len(record.ToBytesSSTable())
+
 	}
 
 	s.writeIndex(index, level)
@@ -392,7 +393,7 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.
 			return nil, seekErr
 		}
 
-		headerBytes := make([]byte, 29)
+		headerBytes := make([]byte, 21)
 		_, readErr := f.Read(headerBytes)
 		if readErr == io.EOF {
 			return nil, readErr
@@ -404,7 +405,17 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.
 		timestamp := int64(binary.BigEndian.Uint64(headerBytes[4:12]))
 		tombstone := headerBytes[12] != 0
 		keySize := int64(binary.BigEndian.Uint64(headerBytes[13:21]))
-		valueSize := int64(binary.BigEndian.Uint64(headerBytes[21:29]))
+		var valueSize int64 = 0
+		if !tombstone {
+			extraBytes := make([]byte, 8)
+			_, readErr := f.Read(extraBytes)
+			if readErr == io.EOF {
+				return nil, readErr
+			} else if readErr != nil {
+				return nil, readErr
+			}
+			valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+		}
 
 		keyBytes := make([]byte, keySize)
 		_, readErr = f.Read(keyBytes)
@@ -413,15 +424,22 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.
 		}
 		loadedKey := string(keyBytes)
 
-		value := make([]byte, valueSize)
-		_, readErr = f.Read(value)
-		if readErr != nil {
-			return nil, readErr
+		var value []byte = nil
+		if !tombstone {
+			value = make([]byte, valueSize)
+			_, readErr = f.Read(value)
+			if readErr != nil {
+				return nil, readErr
+			}
 		}
 
 		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
 		if checkCrc32 != crc32 {
-			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			if !tombstone {
+				valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+			} else {
+				valueOffset += 21 + uint64(keySize)
+			}
 			continue
 		}
 
@@ -429,7 +447,11 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64) (*record.
 			return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value), nil
 		}
 
-		valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+		if !tombstone {
+			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+		} else {
+			valueOffset += 21 + uint64(keySize)
+		}
 	}
 }
 
@@ -446,14 +468,14 @@ func (s *SSTable) createFilter(allRecords []record.Record, level int) {
 func (s *SSTable) createMetaData(allRecords []record.Record, level int) {
 	var allRecordsBytes [][]byte
 	for _, record := range allRecords {
-		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable())
 	}
 	s.metadata = merkle.NewMerkleTree(allRecordsBytes)
 	s.metadata.WriteToBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_metadata_" + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
 }
 
 func (s *SSTable) WriteRecord(record record.Record, filepath string) {
-	recordBytes := record.ToBytes()
+	recordBytes := record.ToBytesSSTable()
 
 	f, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
@@ -468,7 +490,7 @@ func (s *SSTable) WriteRecord(record record.Record, filepath string) {
 	}
 }
 
-func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
+func WriteIndexSummaryLSM(path string, level int, cfg config.Config) {
 	dataFile, err := os.Open(path)
 	if err != nil {
 		return
@@ -517,8 +539,8 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config) {
 
 		}
 		count++
-		indexOffset += len(record.ToBytes())
-		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+		indexOffset += len(record.ToBytesSSTable())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable())
 	}
 
 	mt := merkle.NewMerkleTree(allRecordsBytes)

@@ -45,7 +45,6 @@ func (e *Engine) Engine() {
 	e.all_memtables = memtable.LoadAllMemtables(e.config)
 	e.active_memtable_index = 0
 
-	// TODO: Uradi brisanje WAL-a
 	e.recover()
 }
 
@@ -62,6 +61,9 @@ func (e *Engine) Put(key string, value []byte, deleted bool) error {
 
 func (e *Engine) Get(key string) *record.Record {
 	var record *record.Record
+	if record.Key == "tb_" {
+		return nil
+	}
 	// going through memtable
 	i := e.active_memtable_index
 	//is active memtable empty, if it is try previous

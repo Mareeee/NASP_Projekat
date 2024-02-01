@@ -19,16 +19,51 @@ func Compact(cfg *config.Config) bool {
 	if cfg.CompactBy == "byte" {
 		byteSizeOfCurrentLevelSSTables, _ := calculateSizeOfSSTables(SSTablesLvl1)
 		if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables {
-			SizeTiered(cfg)
-			return true
+			if cfg.CompactType == "size_tiered" {
+				SizeTiered(cfg)
+				return true
+			} else if cfg.CompactType == "level" {
+				Level(cfg)
+				return true
+			}
 		}
 	} else if cfg.CompactBy == "amount" {
 		if len(SSTablesLvl1) >= cfg.MaxTabels {
-			SizeTiered(cfg)
-			return true
+			if cfg.CompactType == "size_tiered" {
+				SizeTiered(cfg)
+				return true
+			} else if cfg.CompactType == "level" {
+				Level(cfg)
+				return true
+			}
 		}
 	}
 	return false
+}
+
+func Level(cfg *config.Config) {
+	var currentLevelSSTables []string
+	for level := 1; level < cfg.NumberOfLevels; level++ {
+		currentLevelSSTables = findSSTable(strconv.Itoa(level))
+		if len(currentLevelSSTables) < 2 { // ne radimo kompakciju za manje od 2 sstabele
+			return
+		}
+		path := config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level+1) + "_sstable_data_" + strconv.Itoa(cfg.NumberOfSSTables-len(currentLevelSSTables)+1) + ".db"
+		if cfg.CompactBy == "byte" {
+			byteSizeOfCurrentLevelSSTables, _ := calculateSizeOfSSTables(currentLevelSSTables)
+			if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables {
+				LeveledMergeSSTables(currentLevelSSTables, path)
+			} else {
+				return // nema uslova za kompakciju
+			}
+		} else if cfg.CompactBy == "amount" {
+			if len(currentLevelSSTables) >= cfg.MaxTabels {
+				LeveledMergeSSTables(currentLevelSSTables, path)
+			} else {
+				return // nema uslova za kompakciju
+			}
+		}
+	}
 }
 
 func SizeTiered(cfg *config.Config) {
@@ -43,13 +78,13 @@ func SizeTiered(cfg *config.Config) {
 		if cfg.CompactBy == "byte" {
 			byteSizeOfCurrentLevelSSTables, _ := calculateSizeOfSSTables(currentLevelSSTables)
 			if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables {
-				mergeMultipleSSTables(currentLevelSSTables, path)
+				SizeTieredMergeSSTables(currentLevelSSTables, path)
 			} else {
 				return // nema uslova za kompakciju
 			}
 		} else if cfg.CompactBy == "amount" {
 			if len(currentLevelSSTables) >= cfg.MaxTabels {
-				mergeMultipleSSTables(currentLevelSSTables, path)
+				SizeTieredMergeSSTables(currentLevelSSTables, path)
 			} else {
 				return // nema uslova za kompakciju
 			}
@@ -58,8 +93,12 @@ func SizeTiered(cfg *config.Config) {
 		deleteOldTables(currentLevelSSTables, level)
 		cfg.NumberOfSSTables -= len(currentLevelSSTables) - 1
 		cfg.WriteConfig()
-		sstable.WriteDataIndexSummaryLSM(path, level+1, *cfg)
+		sstable.WriteIndexSummaryLSM(path, level+1, *cfg)
 	}
+}
+
+func LeveledMergeSSTables(SSTables []string, filepath string) bool {
+	return false
 }
 
 // vraca velicinu svih sstabeli na nekom nivou
@@ -109,7 +148,7 @@ func findSSTable(level string) []string {
 	return currentLevelSSTables
 }
 
-func mergeMultipleSSTables(SSTables []string, filepath string) bool {
+func SizeTieredMergeSSTables(SSTables []string, filepath string) bool {
 	SSTableFiles := []*os.File{}
 	dataFile, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
@@ -148,7 +187,7 @@ func mergeMultipleSSTables(SSTables []string, filepath string) bool {
 		rec := findSuitableRecord(allRecords)
 		index := findRecordIndex(allRecords, rec)
 
-		recordBytes := rec.ToBytes()
+		recordBytes := rec.ToBytesSSTable()
 
 		_, err := dataFile.Write(recordBytes)
 		if err != nil {
@@ -167,7 +206,7 @@ func mergeMultipleSSTables(SSTables []string, filepath string) bool {
 	return true
 }
 
-func findRecordIndex(allRecords []record.Record, target record.Record) int {
+func findRecordIndex(allRecords []*record.Record, target *record.Record) int {
 	for i := 0; i < len(allRecords); i++ {
 		if record.IsSimilar(allRecords[i], target) {
 			return i
@@ -176,7 +215,7 @@ func findRecordIndex(allRecords []record.Record, target record.Record) int {
 	return -1
 }
 
-func findSuitableRecord(allRecords []record.Record) record.Record {
+func findSuitableRecord(allRecords []*record.Record) *record.Record {
 	sort.Slice(allRecords, func(i, j int) bool {
 		// sortiramo leksikografski
 		if allRecords[i].Key != allRecords[j].Key {
@@ -215,7 +254,7 @@ func allRecordsHaveSameKey(records []record.Record) bool {
 	return true
 }
 
-func deleteFromArrays(allRecords []record.Record, allFiles []*os.File, index int) ([]record.Record, []*os.File) {
+func deleteFromArrays(allRecords []*record.Record, allFiles []*os.File, index int) ([]*record.Record, []*os.File) {
 	allFiles[index].Close()
 	allRecordsResult := append(allRecords[:index], allRecords[index+1:]...)
 	allFilesResult := append(allFiles[:index], allFiles[index+1:]...)

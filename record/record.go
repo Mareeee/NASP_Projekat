@@ -44,8 +44,8 @@ func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, va
 	}
 }
 
-func LoadRecordFromFile(file os.File) (Record, error) {
-	var record Record
+func LoadRecordFromFile(file os.File) (*Record, error) {
+	var record *Record
 
 	CRCBytes := make([]byte, 4)
 	_, err := file.Read(CRCBytes)
@@ -66,23 +66,37 @@ func LoadRecordFromFile(file os.File) (Record, error) {
 	file.Read(keySizeBytes)
 	record.KeySize = int64(binary.BigEndian.Uint64(keySizeBytes))
 
-	valueSizeBytes := make([]byte, 8)
-	file.Read(valueSizeBytes)
-	record.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
+	if !record.Tombstone {
+		valueSizeBytes := make([]byte, 8)
+		file.Read(valueSizeBytes)
+		record.ValueSize = int64(binary.BigEndian.Uint64(valueSizeBytes))
 
-	keyBytes := make([]byte, record.KeySize)
-	file.Read(keyBytes)
-	record.Key = string(keyBytes)
+		keyBytes := make([]byte, record.KeySize)
+		file.Read(keyBytes)
+		record.Key = string(keyBytes)
 
-	valueBytes := make([]byte, record.ValueSize)
-	file.Read(valueBytes)
-	record.Value = valueBytes
+		valueBytes := make([]byte, record.ValueSize)
+		file.Read(valueBytes)
+		record.Value = valueBytes
+	} else {
+		record.ValueSize = 0
 
-	return record, err
+		keyBytes := make([]byte, record.KeySize)
+		file.Read(keyBytes)
+		record.Key = string(keyBytes)
+
+		record.Value = nil
+	}
+	checkCrc32 := CalculateCRC(record.Timestamp, record.Tombstone, record.KeySize, record.ValueSize, record.Key, record.Value)
+	if checkCrc32 != record.Crc32 {
+		return nil, nil
+	}
+
+	return record, nil
 }
 
-func LoadAllRecordsFromFiles(filePaths []*os.File) []Record {
-	var allRecords []Record
+func LoadAllRecordsFromFiles(filePaths []*os.File) []*Record {
+	var allRecords []*Record
 
 	for i := 0; i < len(filePaths); i++ {
 		record, _ := LoadRecordFromFile(*filePaths[i])
@@ -170,6 +184,31 @@ func (r Record) ToBytes() []byte {
 	return buffer
 }
 
+func (r Record) ToBytesSSTable() []byte {
+	var bufferSize int64
+	if r.Tombstone {
+		bufferSize = 21 + r.KeySize
+		r.Crc32 = CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, 0, r.Key, nil)
+	} else {
+		bufferSize = 29 + r.KeySize + r.ValueSize
+	}
+	buffer := make([]byte, bufferSize)
+	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.Crc32))
+	binary.BigEndian.PutUint64(buffer[4:12], uint64(r.Timestamp))
+	buffer[12] = 0
+	if r.Tombstone {
+		buffer[12] = 1
+		binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+		copy(buffer[21:21+r.KeySize], []byte(r.Key))
+		return buffer
+	}
+	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.ValueSize))
+	copy(buffer[29:29+r.KeySize], []byte(r.Key))
+	copy(buffer[29+r.KeySize:bufferSize], r.Value)
+	return buffer
+}
+
 func GetNewerRecord(record1, record2 Record) Record {
 	if record1.Timestamp > record2.Timestamp {
 		return record1
@@ -178,6 +217,6 @@ func GetNewerRecord(record1, record2 Record) Record {
 	}
 }
 
-func IsSimilar(rec Record, target Record) bool {
+func IsSimilar(rec *Record, target *Record) bool {
 	return rec.Crc32 == target.Crc32 && rec.Timestamp == target.Timestamp && rec.Tombstone == target.Tombstone && rec.KeySize == target.KeySize && rec.ValueSize == target.ValueSize && rec.Key == target.Key && string(rec.Value) == string(target.Value)
 }
