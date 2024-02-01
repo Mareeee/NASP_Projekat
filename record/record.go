@@ -78,7 +78,7 @@ func LoadRecordFromFile(file os.File) (Record, error) {
 	file.Read(valueBytes)
 	record.Value = valueBytes
 
-	return record, err
+	return record, nil
 }
 
 func LoadAllRecordsFromFiles(filePaths []*os.File) []Record {
