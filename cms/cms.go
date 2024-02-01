@@ -14,7 +14,8 @@ type CountMinSketch struct {
 	matrix [][]uint32     // matrix bajtova
 }
 
-func (cms *CountMinSketch) NewCountMinSketch(epsilon float64, delta float64) {
+func NewCountMinSketch(epsilon float64, delta float64) *CountMinSketch {
+	cms := new(CountMinSketch)
 	cms.m = CalculateM(epsilon)
 	cms.k = CalculateK(delta)
 	cms.hf = CreateHashFunctions(cms.k)
@@ -23,6 +24,8 @@ func (cms *CountMinSketch) NewCountMinSketch(epsilon float64, delta float64) {
 	for i := range cms.matrix {
 		cms.matrix[i] = make([]uint32, cms.m)
 	}
+
+	return cms
 }
 
 func (cms *CountMinSketch) AddElement(key string) {
