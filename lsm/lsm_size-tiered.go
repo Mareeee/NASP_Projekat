@@ -165,8 +165,6 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *
 
 	allRecords := record.LoadAllRecordsFromFiles(SSTableFiles, keyDictionary)
 
-	fmt.Printf("SSTableFiles: %v\n", SSTableFiles)
-	fmt.Printf("SSTableFiles: %v\n", len(SSTableFiles))
 	// loop dok postoje podaci
 	for len(SSTableFiles) > 0 {
 
@@ -190,7 +188,7 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *
 		rec := findSuitableRecord(allRecords)
 		index := findRecordIndex(allRecords, rec)
 
-		recordBytes := rec.ToBytesSSTable()
+		recordBytes := rec.ToBytesSSTable(keyDictionary)
 
 		_, err := dataFile.Write(recordBytes)
 		if err != nil {

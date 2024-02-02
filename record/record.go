@@ -65,9 +65,16 @@ func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (Record, er
 	file.Read(tombstoneBytes)
 	record.Tombstone = tombstoneBytes[0] == 1
 
-	keySizeBytes := make([]byte, 8)
-	file.Read(keySizeBytes)
-	record.KeySize = int64(binary.BigEndian.Uint64(keySizeBytes))
+	var keySizeBytes []byte
+	if cfg.Compress {
+		keySizeBytes = make([]byte, 2)
+		file.Read(keySizeBytes)
+		record.KeySize = int64(binary.BigEndian.Uint16(keySizeBytes))
+	} else {
+		keySizeBytes = make([]byte, 8)
+		file.Read(keySizeBytes)
+		record.KeySize = int64(binary.BigEndian.Uint64(keySizeBytes))
+	}
 
 	if !record.Tombstone {
 		valueSizeBytes := make([]byte, 8)
@@ -76,8 +83,8 @@ func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (Record, er
 
 		keyBytes := make([]byte, record.KeySize)
 		file.Read(keyBytes)
-		if cfg.Compact {
-			index := binary.BigEndian.Uint64(keyBytes)
+		if cfg.Compress {
+			index := binary.BigEndian.Uint16(keyBytes)
 			record.Key = (*keyDictionary)[int(index)]
 		} else {
 			record.Key = string(keyBytes)
@@ -192,13 +199,41 @@ func (r Record) ToBytes() []byte {
 	return buffer
 }
 
-func (r Record) ToBytesSSTable() []byte {
+func putElementToMap(ogKey string, keyDictionary *map[int]string) int {
+	for key, value := range *keyDictionary {
+		if value == ogKey {
+			return key
+		}
+	}
+
+	nextKey := 0
+	for key := range *keyDictionary {
+		if key >= nextKey {
+			nextKey = key + 1
+		}
+	}
+	(*keyDictionary)[nextKey] = ogKey
+
+	return nextKey
+}
+
+func (r Record) ToBytesSSTable(keyDictionary *map[int]string) []byte {
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 	var bufferSize int64
 	if r.Tombstone {
-		bufferSize = 21 + r.KeySize
+		if cfg.Compress {
+			bufferSize = 15 + r.KeySize
+		} else {
+			bufferSize = 21 + r.KeySize
+		}
 		r.Crc32 = CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, 0, r.Key, nil)
 	} else {
-		bufferSize = 29 + r.KeySize + r.ValueSize
+		if cfg.Compress {
+			bufferSize = 23 + r.KeySize + r.ValueSize
+		} else {
+			bufferSize = 29 + r.KeySize + r.ValueSize
+		}
 	}
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.Crc32))
@@ -206,14 +241,34 @@ func (r Record) ToBytesSSTable() []byte {
 	buffer[12] = 0
 	if r.Tombstone {
 		buffer[12] = 1
-		binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
-		copy(buffer[21:21+r.KeySize], []byte(r.Key))
+		if cfg.Compress {
+			index := putElementToMap(r.Key, keyDictionary)
+			indexBytes := make([]byte, 2)
+			binary.BigEndian.PutUint16(indexBytes, uint16(index))
+			binary.BigEndian.PutUint16(buffer[13:15], uint16(r.KeySize))
+			binary.BigEndian.PutUint64(buffer[15:23], uint64(r.ValueSize))
+			binary.BigEndian.PutUint16(buffer[23:23+r.KeySize], uint16(index))
+			copy(buffer[23+r.KeySize:bufferSize], r.Value)
+		} else {
+			binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+			copy(buffer[21:21+r.KeySize], []byte(r.Key))
+		}
 		return buffer
 	}
-	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
-	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.ValueSize))
-	copy(buffer[29:29+r.KeySize], []byte(r.Key))
-	copy(buffer[29+r.KeySize:bufferSize], r.Value)
+	if cfg.Compress {
+		index := putElementToMap(r.Key, keyDictionary)
+		indexBytes := make([]byte, 2)
+		binary.BigEndian.PutUint16(indexBytes, uint16(index))
+		binary.BigEndian.PutUint16(buffer[13:15], uint16(r.KeySize))
+		binary.BigEndian.PutUint64(buffer[15:23], uint64(r.ValueSize))
+		binary.BigEndian.PutUint16(buffer[23:23+r.KeySize], uint16(index))
+		copy(buffer[23+r.KeySize:bufferSize], r.Value)
+	} else {
+		binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
+		binary.BigEndian.PutUint64(buffer[21:29], uint64(r.ValueSize))
+		copy(buffer[29:29+r.KeySize], []byte(r.Key))
+		copy(buffer[29+r.KeySize:bufferSize], r.Value)
+	}
 	return buffer
 }
 

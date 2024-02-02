@@ -93,7 +93,7 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 
 	var index []IndexEntry
 
-	for _, record := range allRecords {
+	for i, record := range allRecords {
 		// ovde se pravi data, upisujem sve rekorde
 		s.WriteRecord(&record, config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(level)+"_sstable_data_"+strconv.Itoa(s.config.NumberOfSSTables)+".db")
 
@@ -101,12 +101,8 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
 		}
 		count++
-		if !record.Tombstone {
-			offset += len(record.ToBytes())
-		} else {
-			offset += 21 + int(record.KeySize)
-		}
-
+		offset += len(record.ToBytesSSTable(s.keyDictionary))
+		allRecords[i] = record
 	}
 
 	s.writeIndex(index, level)
@@ -306,7 +302,7 @@ func loadAndFindIndexOffset(fileNumber, level int, key string, keyDictionary *ma
 		}
 
 		var firstKey string
-		if cfg.Compact {
+		if cfg.Compress {
 			index := binary.BigEndian.Uint64(firstKeyBytes)
 			firstKey = (*keyDictionary)[int(index)]
 		} else {
@@ -328,7 +324,7 @@ func loadAndFindIndexOffset(fileNumber, level int, key string, keyDictionary *ma
 		}
 
 		var lastKey string
-		if cfg.Compact {
+		if cfg.Compress {
 			index := binary.BigEndian.Uint64(lastKeyBytes)
 			firstKey = (*keyDictionary)[int(index)]
 		} else {
@@ -383,7 +379,7 @@ func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key str
 			return -1, readErr
 		}
 		var foundKey string
-		if cfg.Compact {
+		if cfg.Compress {
 			index := binary.BigEndian.Uint64(keyBytes)
 			foundKey = (*keyDictionary)[int(index)]
 		} else {
@@ -459,7 +455,7 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64, keyDictio
 			return nil, readErr
 		}
 		var loadedKey string
-		if cfg.Compact {
+		if cfg.Compress {
 			index := binary.BigEndian.Uint64(keyBytes)
 			loadedKey = (*keyDictionary)[int(index)]
 		} else {
@@ -510,7 +506,7 @@ func (s *SSTable) createFilter(allRecords []record.Record, level int) {
 func (s *SSTable) createMetaData(allRecords []record.Record, level int) {
 	var allRecordsBytes [][]byte
 	for _, record := range allRecords {
-		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable(s.keyDictionary))
 	}
 	s.metadata = merkle.NewMerkleTree(allRecordsBytes)
 	s.metadata.WriteToBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_metadata_" + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
@@ -538,18 +534,16 @@ func (s *SSTable) ToBytesSSTable(r *record.Record) []byte {
 	var bufferSize int64
 
 	index := s.putElementToMap(r.Key)
-
-	indexBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(indexBytes, uint64(index))
-
+	indexBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(indexBytes, uint16(index))
 	r.KeySize = int64(len(indexBytes))
 
 	if r.Tombstone {
-		bufferSize = 21 + r.KeySize
+		bufferSize = 15 + r.KeySize
 		r.Crc32 = record.CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, 0, r.Key, nil)
 	} else {
-		bufferSize = 29 + r.KeySize + r.ValueSize
-		if s.config.Compact {
+		bufferSize = 23 + r.KeySize + r.ValueSize
+		if s.config.Compress {
 			r.Crc32 = record.CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, r.ValueSize, r.Key, r.Value)
 		}
 	}
@@ -560,21 +554,20 @@ func (s *SSTable) ToBytesSSTable(r *record.Record) []byte {
 	buffer[12] = 0
 	if r.Tombstone {
 		buffer[12] = 1
-		binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
-		copy(buffer[21:21+r.KeySize], []byte(r.Key))
+		binary.BigEndian.PutUint16(buffer[13:15], uint16(r.KeySize))
+		copy(buffer[15:15+r.KeySize], []byte(r.Key))
 		return buffer
 	}
-	binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
-	binary.BigEndian.PutUint64(buffer[21:29], uint64(r.ValueSize))
-
-	copy(buffer[29:29+r.KeySize], indexBytes)
-	copy(buffer[29+r.KeySize:bufferSize], r.Value)
+	binary.BigEndian.PutUint16(buffer[13:15], uint16(r.KeySize))
+	binary.BigEndian.PutUint64(buffer[15:23], uint64(r.ValueSize))
+	binary.BigEndian.PutUint16(buffer[23:23+r.KeySize], uint16(index))
+	copy(buffer[23+r.KeySize:bufferSize], r.Value)
 	return buffer
 }
 
 func (s *SSTable) WriteRecord(record *record.Record, filepath string) {
 	var recordBytes []byte
-	if s.config.Compact {
+	if s.config.Compress {
 		recordBytes = s.ToBytesSSTable(record)
 	} else {
 		recordBytes = record.ToBytes()
@@ -642,8 +635,8 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 
 		}
 		count++
-		indexOffset += len(record.ToBytesSSTable())
-		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable())
+		indexOffset += len(record.ToBytesSSTable(keyDictionary))
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable(keyDictionary))
 	}
 
 	mt := merkle.NewMerkleTree(allRecordsBytes)

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"main/bloom-filter"
@@ -40,7 +41,14 @@ func (e *Engine) Engine() {
 
 	// DESERIALIZE KEY DICT
 	// posto lsm nije struktura, zvacemo ga iz package-a
-	e.KeyDictionary = make(map[int]string)
+	keyDictionaryRecord := e.Get("keyDictionary_")
+	keyDictionary, err := e.DeserializeMap(keyDictionaryRecord.Value)
+	if err != nil {
+		e.KeyDictionary = make(map[int]string)
+	} else {
+		e.KeyDictionary = keyDictionary
+	}
+	// e.KeyDictionary = make(map[int]string)
 	e.Cache = *cache.NewCache(e.config)
 	wal, _ := wal.LoadWal(&e.config)
 	e.Wal = *wal
@@ -486,4 +494,14 @@ func allSSTables() [][]int {
 	}
 
 	return data
+}
+
+func (e *Engine) SerializeMap(m map[int]string) ([]byte, error) {
+	return json.Marshal(m)
+}
+
+func (e *Engine) DeserializeMap(data []byte) (map[int]string, error) {
+	var m map[int]string
+	err := json.Unmarshal(data, &m)
+	return m, err
 }
