@@ -3,7 +3,7 @@
   "MaxTables": 4,
   "CompactBy": "byte",
   "MaxBytesSSTables": 128,
-  "CompactType": "size_tiered",
+  "CompactType": "level",
   "NumberOfSegments": 1,
   "SegmentSize": 512,
   "LastSegmentSize": 0,
@@ -14,9 +14,9 @@
   "Capacity": 10,
   "Rate": 2,
   "M": 0,
-  "MaxSize": 80,
+  "MaxSize": 1000,
   "MemtableStructure": "btree",
-  "NumberOfMemtables": 2,
+  "NumberOfMemtables": 3,
   "CacheMaxSize": 3,
   "Compact": false
 }
