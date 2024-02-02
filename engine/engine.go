@@ -125,7 +125,6 @@ func (e *Engine) Delete(key string) error {
 func (e *Engine) BloomFilterCreateNewInstance(key string) {
 	bloomFilter := bloom.NewBloomFilter(100, 95.0)
 	value := bloomFilter.ToBytes()
-	fmt.Println(len(value))
 	e.Put("bf_"+key, value, false)
 }
 
@@ -358,7 +357,11 @@ func (e *Engine) PrefixScan(prefix string, pageNumber, pageSize int) []record.Re
 
 	}
 
-	return page[:pageSize]
+	if len(page) <= pageSize {
+		return page
+	} else {
+		return page[:pageSize]
+	}
 }
 
 func (e *Engine) RangeScan(minKey, maxKey string, pageNumber, pageSize int) []record.Record {
@@ -442,7 +445,11 @@ func (e *Engine) RangeScan(minKey, maxKey string, pageNumber, pageSize int) []re
 
 	}
 
-	return page[:pageSize]
+	if len(page) <= pageSize {
+		return page
+	} else {
+		return page[:pageSize]
+	}
 }
 
 func sortAndRemoveSame(page []record.Record) []record.Record {

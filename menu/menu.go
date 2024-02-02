@@ -64,6 +64,10 @@ func (m *Menu) Start() {
 				m.HLLOptions()
 			case "7":
 				m.SimHashOptions()
+			case "8":
+				m.PrefixScan()
+			case "9":
+				m.RangeScan()
 			case "X":
 				record := m.engine.Tbucket.ToBytes()
 				m.engine.Put("tb_", record, false)
@@ -145,14 +149,14 @@ func (m *Menu) SimHashOptions() {
 				fmt.Println(err)
 			}
 		case "2":
-			fmt.Print("Input for first SimHash: ")
+			fmt.Print("Input key for first SimHash: ")
 			key1 := m.InputString()
 			if key1 == "" {
 				fmt.Println("invalid key")
 				return
 			}
 
-			fmt.Print("Input for second SimHash: ")
+			fmt.Print("Input key for second SimHash: ")
 			key2 := m.InputString()
 			if key2 == "" {
 				fmt.Println("invalid key")

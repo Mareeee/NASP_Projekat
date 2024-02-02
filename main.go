@@ -1,14 +1,13 @@
 package main
 
-import (
-	"main/engine"
-	"main/test"
-)
+import "main/menu"
 
 func main() {
-	engine := new(engine.Engine)
-	engine.Engine()
-	test.GenerateRandomRecordsForEvery50000(*engine)
+	// engine := new(engine.Engine)
+	// engine.Engine()
+	menu := new(menu.Menu)
+	menu.Start()
+	// test.GenerateRandomRecordsForEvery50000(*engine)
 	// cfg := new(config.Config)
 	// config.LoadConfig(cfg)
 	// wal, _ := wal.LoadWal(*cfg)
