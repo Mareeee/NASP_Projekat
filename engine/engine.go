@@ -64,9 +64,6 @@ func (e *Engine) Put(key string, value []byte, deleted bool) error {
 
 func (e *Engine) Get(key string) *record.Record {
 	var record *record.Record
-	if record.Key == "tb_" {
-		return nil
-	}
 	// going through memtable
 	i := e.active_memtable_index
 	//is active memtable empty, if it is try previous
@@ -244,7 +241,7 @@ func (e *Engine) CalculateHammingDistanceSimHash(key1, key2 string) error {
 	fingerprint1 := simhash.LoadFromBytes(record1.Value)
 	fingerprint2 := simhash.LoadFromBytes(record2.Value)
 	hamming := simhash.HammingDistance(fingerprint1, fingerprint2)
-	fmt.Println("hamming distance = " + fmt.Sprint(hamming))
+	fmt.Println("Hamming distance = " + fmt.Sprint(hamming))
 
 	return nil
 }
