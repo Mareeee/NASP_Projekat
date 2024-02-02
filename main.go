@@ -1,12 +1,13 @@
 package main
 
-import "main/menu"
+import "main/engine"
 
 func main() {
+	engine := new(engine.Engine)
+	engine.Engine()
 	// engine := new(engine.Engine)
 	// engine.Engine()
-	menu := new(menu.Menu)
-	menu.Start()
+	// engine.Put("zoran", []byte("dragan"), false)
 	// test.GenerateRandomRecordsForEvery50000(*engine)
 	// cfg := new(config.Config)
 	// config.LoadConfig(cfg)
