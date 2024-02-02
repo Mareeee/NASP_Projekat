@@ -2,11 +2,13 @@ package main
 
 import (
 	"main/engine"
+	"main/test"
 )
 
 func main() {
 	engine := new(engine.Engine)
 	engine.Engine()
+	test.GenerateRandomRecordsForEvery50000(*engine)
 	// cfg := new(config.Config)
 	// config.LoadConfig(cfg)
 	// wal, _ := wal.LoadWal(*cfg)
