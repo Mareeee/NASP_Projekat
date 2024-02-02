@@ -165,8 +165,11 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *
 
 	allRecords := record.LoadAllRecordsFromFiles(SSTableFiles, keyDictionary)
 
+	fmt.Printf("SSTableFiles: %v\n", SSTableFiles)
+	fmt.Printf("SSTableFiles: %v\n", len(SSTableFiles))
 	// loop dok postoje podaci
 	for len(SSTableFiles) > 0 {
+
 		// idemo kroz rekorde i nabavljamo one koji nisu obrisani
 		for i := 0; i < len(SSTableFiles); i++ {
 			for {
@@ -206,7 +209,7 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *
 	return true
 }
 
-func findRecordIndex(allRecords []*record.Record, target *record.Record) int {
+func findRecordIndex(allRecords []record.Record, target record.Record) int {
 	for i := 0; i < len(allRecords); i++ {
 		if record.IsSimilar(allRecords[i], target) {
 			return i
@@ -215,7 +218,7 @@ func findRecordIndex(allRecords []*record.Record, target *record.Record) int {
 	return -1
 }
 
-func findSuitableRecord(allRecords []*record.Record) *record.Record {
+func findSuitableRecord(allRecords []record.Record) record.Record {
 	sort.Slice(allRecords, func(i, j int) bool {
 		// sortiramo leksikografski
 		if allRecords[i].Key != allRecords[j].Key {
@@ -254,7 +257,7 @@ func allRecordsHaveSameKey(records []record.Record) bool {
 	return true
 }
 
-func deleteFromArrays(allRecords []*record.Record, allFiles []*os.File, index int) ([]*record.Record, []*os.File) {
+func deleteFromArrays(allRecords []record.Record, allFiles []*os.File, index int) ([]record.Record, []*os.File) {
 	allFiles[index].Close()
 	allRecordsResult := append(allRecords[:index], allRecords[index+1:]...)
 	allFilesResult := append(allFiles[:index], allFiles[index+1:]...)

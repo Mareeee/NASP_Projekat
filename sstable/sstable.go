@@ -212,7 +212,7 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
 	}
 }
 
-func Search(key string, keyDicitonary map[int]string) (*record.Record, error) {
+func Search(key string, keyDicitonary *map[int]string) (*record.Record, error) {
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
@@ -223,17 +223,17 @@ func Search(key string, keyDicitonary map[int]string) (*record.Record, error) {
 		return nil, err
 	}
 
-	lastKey, offset, err := loadAndFindIndexOffset(fileNumber, level, key, &keyDicitonary)
+	lastKey, offset, err := loadAndFindIndexOffset(fileNumber, level, key, keyDicitonary)
 	if err != nil {
 		return nil, err
 	}
 
-	valueOffset, err := loadAndFindValueOffset(fileNumber, level, uint64(offset), key, lastKey, &keyDicitonary)
+	valueOffset, err := loadAndFindValueOffset(fileNumber, level, uint64(offset), key, lastKey, keyDicitonary)
 	if err != nil {
 		return nil, err
 	}
 
-	record, err := loadRecord(fileNumber, level, key, uint64(valueOffset), &keyDicitonary)
+	record, err := loadRecord(fileNumber, level, key, uint64(valueOffset), keyDicitonary)
 	if err != nil {
 		return nil, err
 	}
@@ -536,15 +536,6 @@ func (s *SSTable) putElementToMap(ogKey string) int {
 
 func (s *SSTable) ToBytesSSTable(r *record.Record) []byte {
 	var bufferSize int64
-	if r.Tombstone {
-		bufferSize = 21 + r.KeySize
-		r.Crc32 = record.CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, 0, r.Key, nil)
-	} else {
-		bufferSize = 29 + r.KeySize + r.ValueSize
-	}
-	buffer := make([]byte, bufferSize)
-	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.Crc32))
-	binary.BigEndian.PutUint64(buffer[4:12], uint64(r.Timestamp))
 
 	index := s.putElementToMap(r.Key)
 
@@ -552,6 +543,19 @@ func (s *SSTable) ToBytesSSTable(r *record.Record) []byte {
 	binary.BigEndian.PutUint64(indexBytes, uint64(index))
 
 	r.KeySize = int64(len(indexBytes))
+
+	if r.Tombstone {
+		bufferSize = 21 + r.KeySize
+		r.Crc32 = record.CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, 0, r.Key, nil)
+	} else {
+		bufferSize = 29 + r.KeySize + r.ValueSize
+		if s.config.Compact {
+			r.Crc32 = record.CalculateCRC(r.Timestamp, r.Tombstone, r.KeySize, r.ValueSize, r.Key, r.Value)
+		}
+	}
+	buffer := make([]byte, bufferSize)
+	binary.BigEndian.PutUint32(buffer[0:4], uint32(r.Crc32))
+	binary.BigEndian.PutUint64(buffer[4:12], uint64(r.Timestamp))
 
 	buffer[12] = 0
 	if r.Tombstone {
@@ -571,7 +575,7 @@ func (s *SSTable) ToBytesSSTable(r *record.Record) []byte {
 func (s *SSTable) WriteRecord(record *record.Record, filepath string) {
 	var recordBytes []byte
 	if s.config.Compact {
-		recordBytes = s.ToBytesSSTable(record) // TODO: dodati uslov za kompresiju
+		recordBytes = s.ToBytesSSTable(record)
 	} else {
 		recordBytes = record.ToBytes()
 	}

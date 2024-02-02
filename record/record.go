@@ -45,15 +45,15 @@ func LoadRecord(crc32 uint32, timestamp int64, tombstone bool, keySize int64, va
 	}
 }
 
-func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (*Record, error) {
-	var record *Record
+func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (Record, error) {
+	var record Record
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
 	CRCBytes := make([]byte, 4)
 	_, err := file.Read(CRCBytes)
 	if err != nil {
-		return record, err
+		return Record{}, err
 	}
 	record.Crc32 = binary.BigEndian.Uint32(CRCBytes)
 
@@ -97,14 +97,14 @@ func LoadRecordFromFile(file os.File, keyDictionary *map[int]string) (*Record, e
 	}
 	checkCrc32 := CalculateCRC(record.Timestamp, record.Tombstone, record.KeySize, record.ValueSize, record.Key, record.Value)
 	if checkCrc32 != record.Crc32 {
-		return nil, nil
+		return Record{}, nil
 	}
 
 	return record, nil
 }
 
-func LoadAllRecordsFromFiles(filePaths []*os.File, keyDictionary *map[int]string) []*Record {
-	var allRecords []*Record
+func LoadAllRecordsFromFiles(filePaths []*os.File, keyDictionary *map[int]string) []Record {
+	var allRecords []Record
 
 	for i := 0; i < len(filePaths); i++ {
 		record, _ := LoadRecordFromFile(*filePaths[i], keyDictionary)
@@ -225,6 +225,6 @@ func GetNewerRecord(record1, record2 Record) Record {
 	}
 }
 
-func IsSimilar(rec *Record, target *Record) bool {
+func IsSimilar(rec Record, target Record) bool {
 	return rec.Crc32 == target.Crc32 && rec.Timestamp == target.Timestamp && rec.Tombstone == target.Tombstone && rec.KeySize == target.KeySize && rec.ValueSize == target.ValueSize && rec.Key == target.Key && string(rec.Value) == string(target.Value)
 }
