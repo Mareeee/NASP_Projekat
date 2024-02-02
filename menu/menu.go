@@ -5,27 +5,35 @@ import (
 	"fmt"
 	"main/engine"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type Menu struct {
 	engine engine.Engine
+	reader *bufio.Reader
 }
 
 func (m *Menu) print() {
-	fmt.Println("\n[1]	PUT")
+	fmt.Println("\n======== MENU ========")
+	fmt.Println("[1]	PUT")
 	fmt.Println("[2]	GET")
 	fmt.Println("[3]	DELETE")
 	fmt.Println("[4]	CountMinSketch options")
 	fmt.Println("[5]	BloomFilter options")
 	fmt.Println("[6]	HyperLogLog options")
 	fmt.Println("[7]	SimHash options")
+	fmt.Println("[8] 	Prefix Scan")
+	fmt.Println("[9] 	Range Scan")
 	fmt.Println("[X]	EXIT")
+	fmt.Println("======================")
 	fmt.Print(">> ")
 }
 
 func (m *Menu) Start() {
 	m.engine.Engine()
+	m.reader = bufio.NewReader(os.Stdin)
 
 	for {
 		m.print()
@@ -36,14 +44,14 @@ func (m *Menu) Start() {
 		if m.engine.Tbucket.Take() {
 			switch option {
 			case "1":
-				key, value := UserInput(true)
+				key, value := m.InputKeyValue(true)
 				m.engine.Put(key, value, false)
 			case "2":
-				key, _ := UserInput(false)
+				key, _ := m.InputKeyValue(false)
 				record := m.engine.Get(key)
 				fmt.Println(record)
 			case "3":
-				key, _ := UserInput(false)
+				key, _ := m.InputKeyValue(false)
 				err := m.engine.Delete(key)
 				if err != nil {
 					fmt.Println(err)
@@ -56,6 +64,10 @@ func (m *Menu) Start() {
 				m.HLLOptions()
 			case "7":
 				m.SimHashOptions()
+			case "8":
+				m.PrefixScan()
+			case "9":
+				m.RangeScan()
 			case "X":
 				record := m.engine.Tbucket.ToBytes()
 				m.engine.Put("tb_", record, false)
@@ -81,34 +93,35 @@ func (m *Menu) Start() {
 }
 
 func (m *Menu) HLLOptions() {
-	fmt.Println("\n[1]	Create new instance")
-	fmt.Println("[2]	Delete already existing instance")
-	fmt.Println("[3]	Adding a new element into an instance")
-	fmt.Println("[4]	Cardinality of an instance")
-	optionScanner := bufio.NewScanner(os.Stdin)
-	optionScanner.Scan()
-	option := optionScanner.Text()
+	fmt.Println("\n======= HLL MENU =======")
+	fmt.Println("[1]	Create Instance")
+	fmt.Println("[2]	Delete Instance")
+	fmt.Println("[3]	Add Key")
+	fmt.Println("[4]	Check Cardinality For Key")
+	fmt.Println("========================")
+	fmt.Print(">>")
+
+	option := m.InputString()
+
 	if m.engine.Tbucket.Take() {
 		switch option {
 		case "1":
-			fmt.Println("Choose name for you HyperLogLog: ")
-			//adding record with key which is name of hyperloglog and value is
-			//hyperloglog in binary
-			key, _ := UserInput(false)
+			fmt.Print("Choose key for new HyperLogLog: ")
+			key := m.InputString()
 			m.engine.HLLCreateNewInstance(key)
 		case "2":
-			fmt.Println("Choose the name of HyperLogLog you want to delete: ")
-			key, _ := UserInput(false)
+			fmt.Print("Input key of HyperLogLog you want to delete: ")
+			key := m.InputString()
 			m.engine.HLLDeleteInstance(key)
 		case "3":
-			fmt.Println("Choose the name of HyperLogLog you want to add element to: ")
-			keyhll, _ := UserInput(false)
-			fmt.Println("Choose the key you want to add: ")
-			key, _ := UserInput(false)
+			fmt.Print("Input key of HyperLogLog you want to add element to: ")
+			keyhll := m.InputString()
+			fmt.Print("Input key you want to add: ")
+			key := m.InputString()
 			m.engine.HLLAddElement(keyhll, key)
 		case "4":
-			fmt.Println("Choose the name of HyperLogLog you want to see the estimation for: ")
-			key, _ := UserInput(false)
+			fmt.Print("Input key of HyperLogLog you want to see the estimation for: ")
+			key := m.InputString()
 			m.engine.HLLCardinality(key)
 		default:
 			fmt.Println("Invalid option!")
@@ -117,43 +130,39 @@ func (m *Menu) HLLOptions() {
 		fmt.Println("Rate limit exceeded. Waiting...")
 		time.Sleep(time.Second)
 	}
-
 }
 
 func (m *Menu) SimHashOptions() {
-	fmt.Println("\n[1]	Calculate fingerprint for text")
-	fmt.Println("[2]	Calculate hamming distance for two texts")
+	fmt.Println("\n======= SIMHASH MENU =======")
+	fmt.Println("[1]	Calculate Fingerprint For Text")
+	fmt.Println("[2]	Calculate Hamming Distance For Two Texts")
+	fmt.Println("============================")
+	fmt.Print(">> ")
 
-	optionScanner := bufio.NewScanner(os.Stdin)
-	optionScanner.Scan()
-	option := optionScanner.Text()
+	option := m.InputString()
 
 	if m.engine.Tbucket.Take() {
 		switch option {
 		case "1":
-			key, _ := UserInput(false)
-			fmt.Print("Input text: ")
-			textScanner := bufio.NewScanner(os.Stdin)
-			textScanner.Scan()
-			text := textScanner.Text()
+			fmt.Print("Choose key for new SimHash: ")
+			key := m.InputString()
+			fmt.Print("Input text for which you want to calculate fingerprint: ")
+			text := m.InputString()
+
 			err := m.engine.CalculateFingerprintSimHash(key, text)
 			if err != nil {
 				fmt.Println(err)
 			}
 		case "2":
-			fmt.Print("Input key1: ")
-			keyScanner := bufio.NewScanner(os.Stdin)
-			keyScanner.Scan()
-			key1 := keyScanner.Text()
+			fmt.Print("Input key for first SimHash: ")
+			key1 := m.InputString()
 			if key1 == "" {
 				fmt.Println("invalid key")
 				return
 			}
 
-			fmt.Print("Input key2: ")
-			keyScanner = bufio.NewScanner(os.Stdin)
-			keyScanner.Scan()
-			key2 := keyScanner.Text()
+			fmt.Print("Input key for second SimHash: ")
+			key2 := m.InputString()
 			if key2 == "" {
 				fmt.Println("invalid key")
 				return
@@ -173,34 +182,38 @@ func (m *Menu) SimHashOptions() {
 }
 
 func (m *Menu) BloomFilterOptions() {
-	fmt.Println("\n[1]	Create new instance")
-	fmt.Println("[2]	Delete instance")
-	fmt.Println("[3]	Add element")
-	fmt.Println("[4]	Search element")
+	fmt.Println("\n===== BLOOMFILTER MENU =====")
+	fmt.Println("[1]	Create Instance")
+	fmt.Println("[2]	Delete Instance")
+	fmt.Println("[3]	Add Key")
+	fmt.Println("[4]	Check Presence Of Key")
+	fmt.Println("============================")
+	fmt.Print(">> ")
 
-	optionScanner := bufio.NewScanner(os.Stdin)
-	optionScanner.Scan()
-	option := optionScanner.Text()
+	option := m.InputString()
 
 	if m.engine.Tbucket.Take() {
 		switch option {
 		case "1":
-			key, _ := UserInput(false)
+			fmt.Print("Choose key for new BloomFilter: ")
+			key := m.InputString()
 			m.engine.BloomFilterCreateNewInstance(key)
 		case "2":
-			key, _ := UserInput(false)
+			fmt.Print("Input key of BloomFilter you want to delete: ")
+			key := m.InputString()
 			m.engine.Delete(key)
 		case "3":
-			fmt.Println("Enter instance of bloomfilter: ")
-			key_bf, _ := UserInput(false)
-			fmt.Println("Enter element: ")
-			element, _ := UserInput(false)
-			m.engine.BloomFilterAddElement(key_bf, element)
+			fmt.Print("Input key of BloomFilter you want to add element to: ")
+			key_bf := m.InputString()
+			fmt.Print("Input key you want to add: ")
+			key := m.InputString()
+			m.engine.BloomFilterAddElement(key_bf, key)
 		case "4":
-			fmt.Println("Enter instance of bloomfilter: ")
-			key_bf, _ := UserInput(false)
-			element, _ := UserInput(false)
-			m.engine.BloomFilterCheckElement(key_bf, element)
+			fmt.Print("Input key of BloomFilter you want to check presence of key: ")
+			key_bf := m.InputString()
+			fmt.Print("Input key you want to check: ")
+			key := m.InputString()
+			m.engine.BloomFilterCheckElement(key_bf, key)
 		default:
 			fmt.Println("Invalid option!")
 		}
@@ -211,33 +224,38 @@ func (m *Menu) BloomFilterOptions() {
 }
 
 func (m *Menu) CMSOptions() {
-	fmt.Println("\n[1]	Create new cms")
-	fmt.Println("[2]	Add new element")
-	fmt.Println("[3]	Delete cms")
-	fmt.Println("[4]	Check frequency of element")
+	fmt.Println("\n======= CMS MENU =======")
+	fmt.Println("[1]	Create Instance")
+	fmt.Println("[2]	Delete Instance")
+	fmt.Println("[3]	Add Key")
+	fmt.Println("[4]	Check Repetitions Of Key")
+	fmt.Println("========================")
+	fmt.Print(">>")
 
-	optionScanner := bufio.NewScanner(os.Stdin)
-	optionScanner.Scan()
-	option := optionScanner.Text()
+	option := m.InputString()
+
 	if m.engine.Tbucket.Take() {
 		switch option {
 		case "1":
-			key, _ := UserInput(false)
+			fmt.Print("Choose key for your CMS: ")
+			key := m.InputString()
 			m.engine.CMSCreateNewInstance(key)
 		case "2":
-			fmt.Println("Input the key of CMS you want to add element to: ")
-			key, _ := UserInput(false)
-			value, _ := UserInput(false)
-			m.engine.CMSAddElement(key, value)
-		case "3":
-			fmt.Print("Input key: ")
-			key, _ := UserInput(false)
+			fmt.Print("Input key of CMS you want to delete: ")
+			key := m.InputString()
 			m.engine.Delete(key)
+		case "3":
+			fmt.Println("Input key of CMS you want to add element to: ")
+			key_cms := m.InputString()
+			fmt.Print("Input key you want to add: ")
+			key := m.InputString()
+			m.engine.CMSAddElement(key_cms, key)
 		case "4":
-			fmt.Println("Input the key of CMS you want to check element from: ")
-			key, _ := UserInput(false)
-			value, _ := UserInput(false)
-			m.engine.CMSCheckFrequency(key, value)
+			fmt.Println("Input key of CMS you want to check key repetition: ")
+			key_cms := m.InputString()
+			fmt.Print("Input key you want to check: ")
+			key := m.InputString()
+			m.engine.CMSCheckFrequency(key_cms, key)
 		default:
 			fmt.Println("Invalid option!")
 		}
@@ -247,22 +265,75 @@ func (m *Menu) CMSOptions() {
 	}
 }
 
-func UserInput(inputValueAlso bool) (string, []byte) {
+func (m *Menu) PrefixScan() {
+	fmt.Print("Enter prefix: ")
+	prefix := m.InputString()
+	fmt.Print("Enter page number: ")
+	pageNumber := m.InputInt()
+	fmt.Print("Enter page size: ")
+	pageSize := m.InputInt()
+
+	page := m.engine.PrefixScan(prefix, pageNumber, pageSize)
+
+	if page == nil {
+		fmt.Println("There are not records with given prefix.")
+	} else {
+		fmt.Printf("Page %d:\n", pageNumber)
+
+		for i := 0; i < len(page); i++ {
+			fmt.Printf("Record %d: %s\t%s\n", (i + 1), page[i].Key, page[i].Value)
+		}
+	}
+}
+
+func (m *Menu) RangeScan() {
+	fmt.Print("Enter min key: ")
+	minKey := m.InputString()
+	fmt.Print("Enter max key: ")
+	maxKey := m.InputString()
+	fmt.Print("Enter page number: ")
+	pageNumber := m.InputInt()
+	fmt.Print("Enter page size: ")
+	pageSize := m.InputInt()
+
+	page := m.engine.RangeScan(minKey, maxKey, pageNumber, pageSize)
+
+	if page == nil {
+		fmt.Println("There are not records in given range.")
+	} else {
+		fmt.Printf("Page %d:\n", pageNumber)
+
+		for i := 0; i < len(page); i++ {
+			fmt.Printf("Record %d: %s\t%s\n", (i + 1), page[i].Key, page[i].Value)
+		}
+	}
+}
+
+func (m *Menu) InputKeyValue(inputValueAlso bool) (string, []byte) {
 	fmt.Print("Input key: ")
-	keyScanner := bufio.NewScanner(os.Stdin)
-	keyScanner.Scan()
-	key := keyScanner.Text()
-	if key == "" {
+	key, _ := m.reader.ReadString('\n')
+	key = strings.TrimSpace(key)
+	if key == "" || key == "tb_" {
 		fmt.Println("invalid key")
 		return "", nil
 	}
 	if inputValueAlso {
 		fmt.Print("Input value: ")
-		valueScanner := bufio.NewScanner(os.Stdin)
-		valueScanner.Scan()
-		value := valueScanner.Text()
+		value, _ := m.reader.ReadString('\n')
+		value = strings.TrimSpace(value)
 		return key, []byte(value)
 	} else {
 		return key, nil
 	}
+}
+
+func (m *Menu) InputString() string {
+	input, _ := m.reader.ReadString('\n')
+	return strings.TrimSpace(input)
+}
+
+func (m *Menu) InputInt() int {
+	input := m.InputString()
+	number, _ := strconv.Atoi(input)
+	return number
 }

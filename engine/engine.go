@@ -72,9 +72,6 @@ func (e *Engine) Put(key string, value []byte, deleted bool) error {
 
 func (e *Engine) Get(key string) *record.Record {
 	var record *record.Record
-	if record.Key == "tb_" {
-		return nil
-	}
 	// going through memtable
 	i := e.active_memtable_index
 	//is active memtable empty, if it is try previous
@@ -136,7 +133,6 @@ func (e *Engine) Delete(key string) error {
 func (e *Engine) BloomFilterCreateNewInstance(key string) {
 	bloomFilter := bloom.NewBloomFilter(100, 95.0)
 	value := bloomFilter.ToBytes()
-	fmt.Println(len(value))
 	e.Put("bf_"+key, value, false)
 }
 
@@ -252,7 +248,7 @@ func (e *Engine) CalculateHammingDistanceSimHash(key1, key2 string) error {
 	fingerprint1 := simhash.LoadFromBytes(record1.Value)
 	fingerprint2 := simhash.LoadFromBytes(record2.Value)
 	hamming := simhash.HammingDistance(fingerprint1, fingerprint2)
-	fmt.Println("hamming distance = " + fmt.Sprint(hamming))
+	fmt.Println("Hamming distance = " + fmt.Sprint(hamming))
 
 	return nil
 }
@@ -369,7 +365,11 @@ func (e *Engine) PrefixScan(prefix string, pageNumber, pageSize int) []record.Re
 
 	}
 
-	return page[:pageSize]
+	if len(page) <= pageSize {
+		return page
+	} else {
+		return page[:pageSize]
+	}
 }
 
 func (e *Engine) RangeScan(minKey, maxKey string, pageNumber, pageSize int) []record.Record {
@@ -453,7 +453,11 @@ func (e *Engine) RangeScan(minKey, maxKey string, pageNumber, pageSize int) []re
 
 	}
 
-	return page[:pageSize]
+	if len(page) <= pageSize {
+		return page
+	} else {
+		return page[:pageSize]
+	}
 }
 
 func sortAndRemoveSame(page []record.Record) []record.Record {
