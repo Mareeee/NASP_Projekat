@@ -7,6 +7,7 @@ import (
 
 const (
 	ALL_CONFIG_FILE_PATH       = "config/config.json"
+	WAL_DIRECTORY              = "data/wal/"
 	SEGMENT_FILE_PATH          = "data/wal/wal_"
 	SSTABLE_DIRECTORY          = "data/sstable/"
 	TOKENBUCKET_STATE          = "data/token_bucket/token_bucket_state.bin"
@@ -16,9 +17,7 @@ const (
 	HLL_MAX_PRECISION          = 16
 	CONFIG_NUMBER_OF_LEVELS    = 5
 	CONFIG_MAX_TABLES          = 4
-	CONFIG_NUMBER_OF_SEGMENTS  = 0
 	CONFIG_SEGMENT_SIZE        = 3
-	CONFIG_LAST_SEGMENT_SIZE   = 0
 	CONFIG_MAX_HEIGHT          = 5
 	CONFIG_NUMBER_OF_SSTABLES  = 0
 	CONFIG_INDEX_INTERVAL      = 2
@@ -42,11 +41,8 @@ type Config struct {
 	CompactBy        string `json:"CompactBy"`
 	MaxBytesSSTables int    `json:"MaxBytesSSTables"`
 	CompactType      string `json:"CompactType"`
-
 	// wal
-	NumberOfSegments int `json:"NumberOfSegments"`
-	SegmentSize      int `json:"SegmentSize"`
-	LastSegmentSize  int `json:"LastSegmentSize"`
+	SegmentSize int `json:"SegmentSize"`
 	// skiplist
 	MaxHeight int `json:"MaxHeight"`
 	// sstable
@@ -78,16 +74,8 @@ func (cfg *Config) checkValidity() {
 		cfg.MaxTabels = CONFIG_MAX_TABLES
 	}
 
-	if cfg.NumberOfSegments < 0 {
-		cfg.NumberOfSegments = CONFIG_NUMBER_OF_SEGMENTS
-	}
-
 	if cfg.SegmentSize < 0 {
 		cfg.SegmentSize = CONFIG_SEGMENT_SIZE
-	}
-
-	if cfg.LastSegmentSize < 0 {
-		cfg.LastSegmentSize = CONFIG_LAST_SEGMENT_SIZE
 	}
 
 	if cfg.MaxHeight < 0 {
@@ -154,9 +142,7 @@ func LoadConfig(cfg *Config) error {
 	if err != nil {
 		cfg.NumberOfLevels = CONFIG_NUMBER_OF_LEVELS
 		cfg.MaxTabels = CONFIG_MAX_TABLES
-		cfg.NumberOfSegments = CONFIG_NUMBER_OF_SEGMENTS
 		cfg.SegmentSize = CONFIG_SEGMENT_SIZE
-		cfg.LastSegmentSize = CONFIG_LAST_SEGMENT_SIZE
 		cfg.MaxHeight = CONFIG_MAX_HEIGHT
 		cfg.NumberOfSSTables = CONFIG_NUMBER_OF_SSTABLES
 		cfg.IndexInterval = CONFIG_INDEX_INTERVAL

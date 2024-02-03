@@ -41,10 +41,9 @@ func (e *Engine) Engine() {
 
 	// DESERIALIZE KEY DICT
 	// posto lsm nije struktura, zvacemo ga iz package-a
-
 	// e.KeyDictionary = make(map[int]string)
 	e.Cache = *cache.NewCache(e.config)
-	wal, _ := wal.LoadWal(&e.config)
+	wal, _ := wal.LoadWal(e.config.SegmentSize)
 	e.Wal = *wal
 	e.Tbucket = *tokenbucket.LoadTokenBucket(e.config)
 	e.all_memtables = memtable.LoadAllMemtables(e.config)
@@ -61,10 +60,7 @@ func (e *Engine) Engine() {
 }
 
 func (e *Engine) Put(key string, value []byte, deleted bool) error {
-	err := e.Wal.AddRecord(key, value, deleted)
-	if err != nil {
-		return errors.New("failed wal insert")
-	}
+	e.Wal.AddRecord(key, value, deleted)
 	recordToAdd := record.NewRecord(key, value, false)
 	e.addRecordToMemtable(*recordToAdd)
 	e.Cache.Set(key, *recordToAdd)

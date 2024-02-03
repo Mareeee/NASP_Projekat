@@ -26,6 +26,8 @@ func (m *Menu) print() {
 	fmt.Println("[7]	SimHash options")
 	fmt.Println("[8] 	Prefix Scan")
 	fmt.Println("[9] 	Range Scan")
+	fmt.Println("[10]	Prefix Iterator")
+	fmt.Println("[11]	Range Iterator")
 	fmt.Println("[X]	EXIT")
 	fmt.Println("======================")
 	fmt.Print(">> ")
@@ -68,6 +70,10 @@ func (m *Menu) Start() {
 				m.PrefixScan()
 			case "9":
 				m.RangeScan()
+			case "10":
+				m.PrefixIterator()
+			case "11":
+				m.RangeIterator()
 			case "X":
 				record := m.engine.Tbucket.ToBytes()
 				m.engine.Put("tb_", record, false)
@@ -306,6 +312,174 @@ func (m *Menu) RangeScan() {
 		for i := 0; i < len(page); i++ {
 			fmt.Printf("Record %d: %s\t%s\n", (i + 1), page[i].Key, page[i].Value)
 		}
+	}
+}
+
+func (m *Menu) PrefixIterator() {
+	fmt.Print("Enter prefix: ")
+	prefix := m.InputString()
+
+	input := ""
+	pageNumber := 1
+	for strings.ToLower(input) != "stop" {
+		page := m.engine.PrefixScan(prefix, pageNumber, 1)
+
+		if page == nil && pageNumber == 1 {
+			fmt.Println("There are not records with given prefix.")
+			break
+		} else if page == nil {
+			fmt.Println("No more records.")
+			break
+		} else {
+			fmt.Printf("Record: %s\t%s\n", page[0].Key, page[0].Value)
+		}
+
+		fmt.Print(">> ")
+		input = m.InputString()
+		for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+			fmt.Print(">> ")
+			input = m.InputString()
+		}
+
+		pageNumber++
+	}
+}
+
+func (m *Menu) RangeIterator() {
+	fmt.Print("Enter min key: ")
+	minKey := m.InputString()
+	fmt.Print("Enter max key: ")
+	maxKey := m.InputString()
+
+	input := ""
+	pageNumber := 1
+	for strings.ToLower(input) != "stop" {
+		page := m.engine.RangeScan(minKey, maxKey, pageNumber, 1)
+
+		if page == nil && pageNumber == 1 {
+			fmt.Println("There are not records in this range.")
+			break
+		} else if page == nil {
+			fmt.Println("No more records.")
+			break
+		} else {
+			fmt.Printf("Record: %s\t%s\n", page[0].Key, page[0].Value)
+		}
+
+		fmt.Print(">> ")
+		input = m.InputString()
+		for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+			fmt.Print(">> ")
+			input = m.InputString()
+		}
+
+		pageNumber++
+	}
+}
+
+func (m *Menu) PrefixIterator2() {
+	fmt.Print("Enter prefix: ")
+	prefix := m.InputString()
+
+	input := ""
+	pageNumber := 1
+	for {
+		page := m.engine.PrefixScan(prefix, pageNumber, 10)
+
+		if page == nil && pageNumber == 1 {
+			fmt.Println("There are not records with given prefix.")
+			break
+		} else if page == nil {
+			fmt.Println("No more records.")
+			break
+		} else {
+			fmt.Printf("Record: %s\t%s\n", page[0].Key, page[0].Value)
+
+			fmt.Print(">> ")
+			input = m.InputString()
+			for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+				fmt.Print(">> ")
+				input = m.InputString()
+			}
+
+			if strings.ToLower(input) == "stop" {
+				break
+			} else {
+				i := 1
+				for strings.ToLower(input) == "next" {
+					if i == 10 {
+						break
+					}
+
+					fmt.Printf("Record: %s\t%s\n", page[i].Key, page[i].Value)
+					fmt.Print(">> ")
+					input = m.InputString()
+					for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+						fmt.Print(">> ")
+						input = m.InputString()
+					}
+					i++
+				}
+				if strings.ToLower(input) == "stop" {
+					break
+				}
+			}
+		}
+		pageNumber++
+	}
+}
+
+func (m *Menu) RangeIterator2() {
+	fmt.Print("Enter min key: ")
+	minKey := m.InputString()
+	fmt.Print("Enter max key: ")
+	maxKey := m.InputString()
+
+	input := ""
+	pageNumber := 1
+	for {
+		page := m.engine.RangeScan(minKey, maxKey, pageNumber, 10)
+
+		if page == nil && pageNumber == 1 {
+			fmt.Println("There are not records with given prefix.")
+			break
+		} else if page == nil {
+			fmt.Println("No more records.")
+			break
+		} else {
+			fmt.Printf("Record: %s\t%s\n", page[0].Key, page[0].Value)
+
+			fmt.Print(">> ")
+			input = m.InputString()
+			for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+				fmt.Print(">> ")
+				input = m.InputString()
+			}
+
+			if strings.ToLower(input) == "stop" {
+				break
+			} else {
+				i := 1
+				for strings.ToLower(input) == "next" {
+					if i == 10 {
+						break
+					}
+
+					fmt.Printf("Record: %s\t%s\n", page[i].Key, page[i].Value)
+					fmt.Print(">> ")
+					input = m.InputString()
+					for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+						fmt.Print(">> ")
+						input = m.InputString()
+					}
+					i++
+				}
+				if strings.ToLower(input) == "stop" {
+					break
+				}
+			}
+		}
+		pageNumber++
 	}
 }
 
