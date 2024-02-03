@@ -61,3 +61,15 @@ func shuffle(records []record.Record) {
 		records[i], records[j] = records[j], records[i]
 	})
 }
+
+func GenerateRandomRecords(kvlength int) []record.Record {
+	// key := GenerateRandomString(kvlength)
+	value := []byte("BajoJajo")
+	var listOfRecords []record.Record
+	numberOfRecords := 500
+	for i := 0; i < numberOfRecords; i += 1 {
+		record := record.NewRecord(strconv.Itoa(i), value, false)
+		listOfRecords = append(listOfRecords, *record)
+	}
+	return listOfRecords
+}
