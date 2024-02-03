@@ -4,9 +4,9 @@
   "CompactBy": "byte",
   "MaxBytesSSTables": 128,
   "CompactType": "size_tiered",
-  "NumberOfSegments": 2,
+  "NumberOfSegments": 1,
   "SegmentSize": 512,
-  "LastSegmentSize": 1118,
+  "LastSegmentSize": 0,
   "MaxHeight": 5,
   "NumberOfSSTables": 0,
   "IndexInterval": 2,
@@ -14,13 +14,9 @@
   "Capacity": 10,
   "Rate": 2,
   "M": 0,
-  "MaxSize": 1000,
+  "MaxSize": 80,
   "MemtableStructure": "btree",
-  "NumberOfMemtables": 3,
+  "NumberOfMemtables": 2,
   "CacheMaxSize": 3,
-<<<<<<< HEAD
   "Compress": true
-=======
-  "Compact": false
->>>>>>> 08e5d07297e2b753fe11345afd08c39e860e623f
 }

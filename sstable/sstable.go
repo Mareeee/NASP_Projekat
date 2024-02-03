@@ -121,7 +121,12 @@ func (s *SSTable) writeIndex(index []IndexEntry, level int) {
 	for _, entry := range index {
 		keyBytes := []byte(entry.key)
 
-		err := binary.Write(f, binary.BigEndian, int64(len(keyBytes)))
+		var err error
+		if s.config.Compress {
+			err = binary.Write(f, binary.BigEndian, int16(len(keyBytes)))
+		} else {
+			err = binary.Write(f, binary.BigEndian, int64(len(keyBytes)))
+		}
 		if err != nil {
 			fmt.Println("Error writing key size:", err)
 			return
@@ -158,7 +163,11 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 			offset:   int64(offset),
 		}
 
-		offset = 16 + len([]byte(index[i].key))
+		if s.config.Compress {
+			offset = 12 + len([]byte(index[i].key))
+		} else {
+			offset = 16 + len([]byte(index[i].key))
+		}
 		summary = append(summary, summaryEntry)
 	}
 
@@ -177,7 +186,11 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
 		firstKeyBytes := []byte(entry.firstKey)
 		lastKeyBytes := []byte(entry.lastKey)
 
-		err := binary.Write(f, binary.BigEndian, int64(len(firstKeyBytes)))
+		if s.config.Compress {
+			err = binary.Write(f, binary.BigEndian, int16(len(firstKeyBytes)))
+		} else {
+			err = binary.Write(f, binary.BigEndian, int64(len(firstKeyBytes)))
+		}
 		if err != nil {
 			fmt.Println("Error writing first key size:", err)
 			return
@@ -189,7 +202,11 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
 			return
 		}
 
-		err = binary.Write(f, binary.BigEndian, int64(len(lastKeyBytes)))
+		if s.config.Compress {
+			err = binary.Write(f, binary.BigEndian, int16(len(lastKeyBytes)))
+		} else {
+			err = binary.Write(f, binary.BigEndian, int64(len(lastKeyBytes)))
+		}
 		if err != nil {
 			fmt.Println("Error writing last key size:", err)
 			return
@@ -285,64 +302,97 @@ func loadAndFindIndexOffset(fileNumber, level int, key string, keyDictionary *ma
 		if seekErr != nil {
 			return "", -1, seekErr
 		}
-
-		firstKeySizeBytes := make([]byte, 8)
-		_, readErr := f.Read(firstKeySizeBytes)
-		if readErr == io.EOF {
-			return "", -1, readErr
-		} else if readErr != nil {
-			return "", -1, readErr
-		}
-		firstKeySize := binary.BigEndian.Uint64(firstKeySizeBytes)
-
-		firstKeyBytes := make([]byte, firstKeySize)
-		_, readErr = f.Read(firstKeyBytes)
-		if readErr != nil {
-			return "", -1, readErr
-		}
-
-		var firstKey string
 		if cfg.Compress {
-			index := binary.BigEndian.Uint64(firstKeyBytes)
-			firstKey = (*keyDictionary)[int(index)]
+			firstKeySizeBytes := make([]byte, 2)
+			_, readErr := f.Read(firstKeySizeBytes)
+			if readErr == io.EOF {
+				return "", -1, readErr
+			} else if readErr != nil {
+				return "", -1, readErr
+			}
+			firstKeySize := binary.BigEndian.Uint16(firstKeySizeBytes)
+
+			firstKeyBytes := make([]byte, firstKeySize)
+			_, readErr = f.Read(firstKeyBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+			index := binary.BigEndian.Uint16(firstKeyBytes)
+			firstKey := (*keyDictionary)[int(index)]
+
+			lastKeySizeBytes := make([]byte, 2)
+			_, readErr = f.Read(lastKeySizeBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+
+			lastKeySize := binary.BigEndian.Uint16(lastKeySizeBytes)
+
+			lastKeyBytes := make([]byte, lastKeySize)
+			_, readErr = f.Read(lastKeyBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+			index = binary.BigEndian.Uint16(lastKeyBytes)
+			lastKey := (*keyDictionary)[int(index)]
+
+			offsetBytes := make([]byte, 8)
+			_, readErr = f.Read(offsetBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+			offset := int64(binary.BigEndian.Uint64(offsetBytes))
+
+			if key >= firstKey && key <= lastKey {
+				return lastKey, offset, nil
+			}
+
+			initialOffset += 12 + int64(firstKeySize) + int64(lastKeySize)
 		} else {
-			firstKey = string(firstKeyBytes)
+			firstKeySizeBytes := make([]byte, 8)
+			_, readErr := f.Read(firstKeySizeBytes)
+			if readErr == io.EOF {
+				return "", -1, readErr
+			} else if readErr != nil {
+				return "", -1, readErr
+			}
+			firstKeySize := binary.BigEndian.Uint64(firstKeySizeBytes)
+
+			firstKeyBytes := make([]byte, firstKeySize)
+			_, readErr = f.Read(firstKeyBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+			firstKey := string(firstKeyBytes)
+
+			lastKeySizeBytes := make([]byte, 8)
+			_, readErr = f.Read(lastKeySizeBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+
+			lastKeySize := binary.BigEndian.Uint64(lastKeySizeBytes)
+
+			lastKeyBytes := make([]byte, lastKeySize)
+			_, readErr = f.Read(lastKeyBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+			lastKey := string(lastKeyBytes)
+			offsetBytes := make([]byte, 8)
+			_, readErr = f.Read(offsetBytes)
+			if readErr != nil {
+				return "", -1, readErr
+			}
+			offset := int64(binary.BigEndian.Uint64(offsetBytes))
+
+			if key >= firstKey && key <= lastKey {
+				return lastKey, offset, nil
+			}
+
+			initialOffset += 24 + int64(firstKeySize) + int64(lastKeySize)
+
 		}
-
-		lastKeySizeBytes := make([]byte, 8)
-		_, readErr = f.Read(lastKeySizeBytes)
-		if readErr != nil {
-			return "", -1, readErr
-		}
-
-		lastKeySize := binary.BigEndian.Uint64(lastKeySizeBytes)
-
-		lastKeyBytes := make([]byte, lastKeySize)
-		_, readErr = f.Read(lastKeyBytes)
-		if readErr != nil {
-			return "", -1, readErr
-		}
-
-		var lastKey string
-		if cfg.Compress {
-			index := binary.BigEndian.Uint64(lastKeyBytes)
-			firstKey = (*keyDictionary)[int(index)]
-		} else {
-			lastKey = string(lastKeyBytes)
-		}
-
-		offsetBytes := make([]byte, 8)
-		_, readErr = f.Read(offsetBytes)
-		if readErr != nil {
-			return "", -1, readErr
-		}
-		offset := int64(binary.BigEndian.Uint64(offsetBytes))
-
-		if key >= firstKey && key <= lastKey {
-			return lastKey, offset, nil
-		}
-
-		initialOffset += 24 + int64(firstKeySize) + int64(lastKeySize)
 	}
 }
 
@@ -364,46 +414,78 @@ func loadAndFindValueOffset(fileNumber, level int, summaryOffset uint64, key str
 			return -1, seekErr
 		}
 
-		keySizeBytes := make([]byte, 8)
-		_, readErr := f.Read(keySizeBytes)
-		if readErr == io.EOF {
-			return -1, readErr
-		} else if readErr != nil {
-			return -1, readErr
-		}
-		keySize := binary.BigEndian.Uint64(keySizeBytes)
-
-		keyBytes := make([]byte, keySize)
-		_, readErr = f.Read(keyBytes)
-		if readErr != nil {
-			return -1, readErr
-		}
-		var foundKey string
 		if cfg.Compress {
-			index := binary.BigEndian.Uint64(keyBytes)
-			foundKey = (*keyDictionary)[int(index)]
+			keySizeBytes := make([]byte, 2)
+			_, readErr := f.Read(keySizeBytes)
+			if readErr == io.EOF {
+				return -1, readErr
+			} else if readErr != nil {
+				return -1, readErr
+			}
+			keySize := binary.BigEndian.Uint16(keySizeBytes)
+
+			keyBytes := make([]byte, keySize)
+			_, readErr = f.Read(keyBytes)
+			if readErr != nil {
+				return -1, readErr
+			}
+			index := binary.BigEndian.Uint16(keyBytes)
+			foundKey := (*keyDictionary)[int(index)]
+
+			offsetBytes := make([]byte, 8)
+			_, readErr = f.Read(offsetBytes)
+			if readErr != nil {
+				return -1, readErr
+			}
+			offset := int64(binary.BigEndian.Uint64(offsetBytes))
+
+			if key >= foundKey {
+				lastReadOffset = offset
+			} else {
+				return lastReadOffset, nil
+			}
+
+			if foundKey == lastKey {
+				break
+			}
+
+			summaryOffset += 10 + uint64(keySize)
 		} else {
-			foundKey = string(keyBytes)
-		}
+			keySizeBytes := make([]byte, 8)
+			_, readErr := f.Read(keySizeBytes)
+			if readErr == io.EOF {
+				return -1, readErr
+			} else if readErr != nil {
+				return -1, readErr
+			}
+			keySize := binary.BigEndian.Uint64(keySizeBytes)
 
-		offsetBytes := make([]byte, 8)
-		_, readErr = f.Read(offsetBytes)
-		if readErr != nil {
-			return -1, readErr
-		}
-		offset := int64(binary.BigEndian.Uint64(offsetBytes))
+			keyBytes := make([]byte, keySize)
+			_, readErr = f.Read(keyBytes)
+			if readErr != nil {
+				return -1, readErr
+			}
+			foundKey := string(keyBytes)
 
-		if key >= foundKey {
-			lastReadOffset = offset
-		} else {
-			return lastReadOffset, nil
-		}
+			offsetBytes := make([]byte, 8)
+			_, readErr = f.Read(offsetBytes)
+			if readErr != nil {
+				return -1, readErr
+			}
+			offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
-		if foundKey == lastKey {
-			break
-		}
+			if key >= foundKey {
+				lastReadOffset = offset
+			} else {
+				return lastReadOffset, nil
+			}
 
-		summaryOffset += 16 + keySize
+			if foundKey == lastKey {
+				break
+			}
+
+			summaryOffset += 16 + keySize
+		}
 	}
 
 	return lastReadOffset, nil
@@ -425,71 +507,136 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64, keyDictio
 			return nil, seekErr
 		}
 
-		headerBytes := make([]byte, 21)
-		_, readErr := f.Read(headerBytes)
-		if readErr == io.EOF {
-			return nil, readErr
-		} else if readErr != nil {
-			return nil, readErr
-		}
-
-		crc32 := binary.BigEndian.Uint32(headerBytes[0:4])
-		timestamp := int64(binary.BigEndian.Uint64(headerBytes[4:12]))
-		tombstone := headerBytes[12] != 0
-		keySize := int64(binary.BigEndian.Uint64(headerBytes[13:21]))
-		var valueSize int64 = 0
-		if !tombstone {
-			extraBytes := make([]byte, 8)
-			_, readErr := f.Read(extraBytes)
+		if cfg.Compress {
+			headerBytes := make([]byte, 15)
+			_, readErr := f.Read(headerBytes)
 			if readErr == io.EOF {
 				return nil, readErr
 			} else if readErr != nil {
 				return nil, readErr
 			}
-			valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
-		}
 
-		keyBytes := make([]byte, keySize)
-		_, readErr = f.Read(keyBytes)
-		if readErr != nil {
-			return nil, readErr
-		}
-		var loadedKey string
-		if cfg.Compress {
-			index := binary.BigEndian.Uint64(keyBytes)
-			loadedKey = (*keyDictionary)[int(index)]
-		} else {
-			loadedKey = string(keyBytes)
-		}
+			crc32 := binary.BigEndian.Uint32(headerBytes[0:4])
+			timestamp := int64(binary.BigEndian.Uint64(headerBytes[4:12]))
+			tombstone := headerBytes[12] != 0
+			keySize := int64(binary.BigEndian.Uint16(headerBytes[13:15]))
+			var valueSize int64 = 0
+			if !tombstone {
+				extraBytes := make([]byte, 8)
+				_, readErr := f.Read(extraBytes)
+				if readErr == io.EOF {
+					return nil, readErr
+				} else if readErr != nil {
+					return nil, readErr
+				}
+				valueSize = int64(binary.BigEndian.Uint64(extraBytes[0:8]))
+			}
 
-		var value []byte = nil
-		if !tombstone {
-			value = make([]byte, valueSize)
-			_, readErr = f.Read(value)
+			keyBytes := make([]byte, keySize)
+			_, readErr = f.Read(keyBytes)
 			if readErr != nil {
 				return nil, readErr
 			}
-		}
+			index := binary.BigEndian.Uint16(keyBytes)
+			loadedKey := (*keyDictionary)[int(index)]
 
-		checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
-		if checkCrc32 != crc32 {
+			var value []byte = nil
+			if !tombstone {
+				value = make([]byte, valueSize)
+				_, readErr = f.Read(value)
+				if readErr != nil {
+					return nil, readErr
+				}
+			}
+
+			checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
+			if checkCrc32 != crc32 {
+				if !tombstone {
+					valueOffset += 23 + uint64(keySize) + uint64(valueSize)
+				} else {
+					valueOffset += 15 + uint64(keySize)
+				}
+				continue
+			}
+
+			if loadedKey == key {
+				return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value), nil
+			}
+
+			if !tombstone {
+				valueOffset += 23 + uint64(keySize) + uint64(valueSize)
+			} else {
+				valueOffset += 15 + uint64(keySize)
+			}
+		} else {
+			headerBytes := make([]byte, 21)
+			_, readErr := f.Read(headerBytes)
+			if readErr == io.EOF {
+				return nil, readErr
+			} else if readErr != nil {
+				return nil, readErr
+			}
+
+			crc32 := binary.BigEndian.Uint32(headerBytes[0:4])
+			timestamp := int64(binary.BigEndian.Uint64(headerBytes[4:12]))
+			tombstone := headerBytes[12] != 0
+			keySize := int64(binary.BigEndian.Uint64(headerBytes[13:21]))
+			var valueSize int64 = 0
+			if !tombstone {
+				extraBytes := make([]byte, 8)
+				_, readErr := f.Read(extraBytes)
+				if readErr == io.EOF {
+					return nil, readErr
+				} else if readErr != nil {
+					return nil, readErr
+				}
+				valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+			}
+
+			keyBytes := make([]byte, keySize)
+			_, readErr = f.Read(keyBytes)
+			if readErr != nil {
+				return nil, readErr
+			}
+			var loadedKey string
+			if cfg.Compress {
+				index := binary.BigEndian.Uint64(keyBytes)
+				loadedKey = (*keyDictionary)[int(index)]
+			} else {
+				loadedKey = string(keyBytes)
+			}
+
+			var value []byte = nil
+			if !tombstone {
+				value = make([]byte, valueSize)
+				_, readErr = f.Read(value)
+				if readErr != nil {
+					return nil, readErr
+				}
+			}
+
+			checkCrc32 := record.CalculateCRC(timestamp, tombstone, keySize, valueSize, loadedKey, value)
+			if checkCrc32 != crc32 {
+				if !tombstone {
+					valueOffset += 29 + uint64(keySize) + uint64(valueSize)
+				} else {
+					valueOffset += 21 + uint64(keySize)
+				}
+				continue
+			}
+
+			if loadedKey == key {
+				return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value), nil
+			}
+
 			if !tombstone {
 				valueOffset += 29 + uint64(keySize) + uint64(valueSize)
 			} else {
 				valueOffset += 21 + uint64(keySize)
 			}
-			continue
+
 		}
 
-		if loadedKey == key {
-			return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value), nil
-		}
-
-		if !tombstone {
-			valueOffset += 29 + uint64(keySize) + uint64(valueSize)
-		} else {
-			valueOffset += 21 + uint64(keySize)
-		}
 	}
 }
 

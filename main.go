@@ -1,16 +1,22 @@
 package main
 
-import "main/menu"
+import (
+	"fmt"
+	"main/config"
+	"main/engine"
+)
 
 func main() {
-	// engine := new(engine.Engine)
-	// engine.Engine()
-	menu := new(menu.Menu)
-	menu.Start()
+	engine := new(engine.Engine)
+	engine.Engine()
+	// menu := new(menu.Menu)
+	// menu.Start()
 	// test.GenerateRandomRecordsForEvery50000(*engine)
-	// cfg := new(config.Config)
-	// config.LoadConfig(cfg)
-	// wal, _ := wal.LoadWal(*cfg)
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
+
+	fmt.Println(engine.Get("0"))
+	// wal, _ := wal.LoadWal(cfg)
 	// wal.AddRecord("Mare", []byte("Care"), false)
 	// records := test.GenerateRandomRecords(5)
 	// for i := 0; i < len(records); i++ {
