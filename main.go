@@ -20,7 +20,7 @@ func main() {
 	// wal.AddRecord("Mare", []byte("Care"), false)
 	// records := test.GenerateRandomRecords(5)
 	// for i := 0; i < len(records); i++ {
-	// 	engine.Put(records[i].Key, records[i].Value, false)
+	//     engine.Put(records[i].Key, records[i].Value, false)
 	// }
 	// meni := menu.Menu{}
 	// meni.Start()
@@ -28,7 +28,7 @@ func main() {
 
 	// valueSlice := make([]record.Record, len(rekordi))
 	// for i, ptr := range rekordi {
-	// 	valueSlice[i] = *ptr
+	//     valueSlice[i] = *ptr
 	// }
 
 	// sstable.NewSSTable(valueSlice, cfg, 1)

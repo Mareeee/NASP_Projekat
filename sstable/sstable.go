@@ -33,7 +33,7 @@ type SummaryEntry struct {
 	offset   int64 //  offset s kog citamo iz indexa
 }
 
-func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
+func LoadSSTable(sstLevel int, fileNumber int, keyDicitonary *map[int]string) (*SSTable, error) {
 	cfg := new(config.Config)
 	err := config.LoadConfig(cfg)
 	if err != nil {
@@ -52,7 +52,7 @@ func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
 	}
 	mtNew := merkle.NewMerkleTree(allRecordsBytes)
 
-	mtFile := merkle.ReadFromBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
+	mtFile := merkle.ReadFromBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_metadata_" + strconv.Itoa(fileNumber) + ".bin")
 	mtFileNode := merkle.DeserializeMerkleTree(mtFile)
 
 	check := merkle.CompareMerkleTrees(mtFileNode, mtNew.Root)
@@ -60,7 +60,7 @@ func LoadSSTable(sstLevel int, fileNumber int) (*SSTable, error) {
 		return nil, errors.New("data has been altered")
 	}
 
-	bf := bloom.LoadBloomFilter(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".bin")
+	bf := bloom.LoadBloomFilter(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_filter_" + strconv.Itoa(fileNumber) + ".bin")
 
 	sst := new(SSTable)
 	sst.filter = bf
@@ -229,7 +229,7 @@ func Search(key string, keyDicitonary *map[int]string) (*record.Record, error) {
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
-	level, fileNumber, err := findSSTableNumber(key, cfg.NumberOfSSTables) // broj tabele u kojoj je zapis
+	level, fileNumber, err := findSSTableNumber(key, cfg.NumberOfSSTables, keyDicitonary) // broj tabele u kojoj je zapis
 	if fileNumber == -1 && err == nil {
 		return nil, errors.New("key not found in any of sstables")
 	} else if err != nil {
@@ -254,7 +254,7 @@ func Search(key string, keyDicitonary *map[int]string) (*record.Record, error) {
 }
 
 // trazimo SSTabelu gde gde je sa velikom verovatnocom nas zapis
-func findSSTableNumber(key string, numOfSSTables int) (int, int, error) {
+func findSSTableNumber(key string, numOfSSTables int, keyDicitonary *map[int]string) (int, int, error) {
 	var data [][]int
 	files, _ := os.ReadDir(config.SSTABLE_DIRECTORY)
 
@@ -262,7 +262,7 @@ func findSSTableNumber(key string, numOfSSTables int) (int, int, error) {
 		if strings.Contains(file.Name(), "sstable_data") {
 			sstable_tokens := strings.Split(file.Name(), "_")
 			level, _ := strconv.Atoi(sstable_tokens[1])
-			index, _ := strconv.Atoi(sstable_tokens[4])
+			index, _ := strconv.Atoi(strings.Split(sstable_tokens[4], ".")[0])
 			data = append(data, []int{level, index})
 
 			sort.Slice(data, func(i, j int) bool {
@@ -272,7 +272,7 @@ func findSSTableNumber(key string, numOfSSTables int) (int, int, error) {
 	}
 
 	for i := len(data) - 1; i >= 0; i-- {
-		sst, err := LoadSSTable(data[i][0], data[i][1])
+		sst, err := LoadSSTable(data[i][0], data[i][1], keyDicitonary)
 
 		if err != nil {
 			return -1, -1, err
@@ -590,7 +590,7 @@ func loadRecord(fileNumber, level int, key string, valueOffset uint64, keyDictio
 				} else if readErr != nil {
 					return nil, readErr
 				}
-				valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+				valueSize = int64(binary.BigEndian.Uint64(extraBytes[0:8]))
 			}
 
 			keyBytes := make([]byte, keySize)
@@ -653,7 +653,7 @@ func (s *SSTable) createFilter(allRecords []record.Record, level int) {
 func (s *SSTable) createMetaData(allRecords []record.Record, level int) {
 	var allRecordsBytes [][]byte
 	for _, record := range allRecords {
-		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable(s.keyDictionary))
+		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
 	}
 	s.metadata = merkle.NewMerkleTree(allRecordsBytes)
 	s.metadata.WriteToBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_metadata_" + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")

@@ -12,53 +12,65 @@ import (
 )
 
 type Wal struct {
-	config       *config.Config
-	LowWaterMark int
+	lastSegmentSize  int
+	segmentSize      int
+	numberOfSegments int
+	lowWaterMark     int
 }
 
-func LoadWal(config *config.Config) (*Wal, error) {
+func LoadWal(segmentSize int) (*Wal, error) {
 	w := new(Wal)
-	w.config = config
-	w.LowWaterMark = 0
+	w.segmentSize = segmentSize
+	w.numberOfSegments = countFilesInDirectory(config.WAL_DIRECTORY)
+	w.lastSegmentSize = getFileSize(getPath(w.numberOfSegments))
+	w.lowWaterMark = 0
 	return w, nil
 }
 
+func countFilesInDirectory(dirPath string) int {
+	files, _ := os.ReadDir(dirPath)
+
+	if len(files) == 0 {
+		return 1
+	}
+
+	return len(files)
+}
+
+func getFileSize(filePath string) int {
+	fileInfo, _ := os.Stat(filePath)
+
+	if fileInfo == nil {
+		return 0
+	}
+
+	return int(fileInfo.Size())
+}
+
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
-func (w *Wal) AddRecord(key string, value []byte, delete bool) error {
+func (w *Wal) AddRecord(key string, value []byte, delete bool) {
 	record := record.NewRecord(key, value, delete)
 	recordBytes := record.ToBytes()
 
-	remainingSpaceInLastSegment := w.config.SegmentSize - w.config.LastSegmentSize
+	remainingSpaceInLastSegment := w.segmentSize - w.lastSegmentSize
 
 	if remainingSpaceInLastSegment < len(recordBytes) {
-		err := w.AddRecordToSegment(recordBytes[:remainingSpaceInLastSegment])
-		if err != nil {
-			return err
-		}
-		w.config.NumberOfSegments++
-		w.config.LastSegmentSize = 0
-		err = w.AddRecordToSegment(recordBytes[remainingSpaceInLastSegment:])
-		if err != nil {
-			return err
-		}
+		w.AddRecordToSegment(recordBytes[:remainingSpaceInLastSegment])
+		w.numberOfSegments++
+		w.lastSegmentSize = 0
+		w.AddRecordToSegment(recordBytes[remainingSpaceInLastSegment:])
 	} else {
-		err := w.AddRecordToSegment(recordBytes)
-		if err != nil {
-			return err
-		}
+		w.AddRecordToSegment(recordBytes)
 	}
-	return nil
 }
 
-func (w *Wal) AddRecordToSegment(recordBytes []byte) error {
-	w.config.LastSegmentSize += len(recordBytes)
+func (w *Wal) AddRecordToSegment(recordBytes []byte) {
+	w.lastSegmentSize += len(recordBytes)
 	w.WriteToLastSegment(recordBytes)
-	err := w.config.WriteConfig()
-	return err
 }
 
 func (w Wal) WriteToLastSegment(recordBytes []byte) error {
-	f, err := os.OpenFile(getPath(w.config.NumberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(getPath(w.numberOfSegments), os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return err
 	}
@@ -213,12 +225,7 @@ func (w *Wal) LoadAllRecords() ([]*record.Record, error) {
 	var records []*record.Record
 	var data []byte
 
-	err := config.LoadConfig(w.config)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := 1; i <= w.config.NumberOfSegments; i++ {
+	for i := 1; i <= w.numberOfSegments; i++ {
 		loadedData, err := w.LoadDataFromSegment(getPath(i))
 		if err != nil {
 			return nil, err
@@ -273,25 +280,21 @@ func (w *Wal) LoadDataFromSegment(fileName string) ([]byte, error) {
 	return data, nil
 }
 
-/* Brise segmente na osnovu lowWaterMark iz WalOptions */
-func (w *Wal) DeleteSegments(newLowWaterMark int) error {
-	w.LowWaterMark = newLowWaterMark
-	for i := 1; i <= w.LowWaterMark; i++ {
-		w.config.NumberOfSegments--
+func (w *Wal) DeleteSegments(newLowWaterMark int) {
+	w.lowWaterMark = newLowWaterMark
+	for i := 1; i <= w.lowWaterMark; i++ {
+		w.numberOfSegments--
 		os.Remove(getPath(i)) // brise fajl
 	}
 
-	for i := 1; i <= w.config.NumberOfSegments; i++ {
-		os.Rename(getPath(w.LowWaterMark+i), getPath(i)) // preimenuje fajl
+	for i := 1; i <= w.numberOfSegments; i++ {
+		os.Rename(getPath(w.lowWaterMark+i), getPath(i)) // preimenuje fajl
 	}
 
-	if w.config.NumberOfSegments == 0 { // ako su obrisani svi segmenti
-		w.config.NumberOfSegments = 1 // uvek mora postojati jedan u koji se upisuje
-		w.config.LastSegmentSize = 0  // prazan je
+	if w.numberOfSegments == 0 { // ako su obrisani svi segmenti
+		w.numberOfSegments = 1 // uvek mora postojati jedan u koji se upisuje
+		w.lastSegmentSize = 0  // prazan je
 	}
-
-	err := w.config.WriteConfig()
-	return err
 }
 
 /* Na osnovu rednog broja segmenta kreira filePath za segment */
@@ -317,16 +320,16 @@ func getPath(numberOfSegment int) string {
 }
 
 func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
-	walsToDelete := int(math.Floor(float64(SizeOfRecordsInWal) / float64(w.config.SegmentSize)))
-	remainingBytesToTruncate := SizeOfRecordsInWal - walsToDelete*w.config.SegmentSize
+	walsToDelete := int(math.Floor(float64(SizeOfRecordsInWal) / float64(w.segmentSize)))
+	remainingBytesToTruncate := SizeOfRecordsInWal - walsToDelete*w.segmentSize
 	// slucaj ako brisemo ceo wal
-	if walsToDelete+1 == w.config.NumberOfSegments && remainingBytesToTruncate == w.config.LastSegmentSize {
+	if walsToDelete+1 == w.numberOfSegments && remainingBytesToTruncate == w.lastSegmentSize {
 		walsToDelete += 1
 		w.DeleteSegments(int(walsToDelete))
 		return
 	}
 	w.DeleteSegments(int(walsToDelete))
-	for i := 1; i <= w.config.NumberOfSegments-1; i++ {
+	for i := 1; i <= w.numberOfSegments-1; i++ {
 		f, err := os.OpenFile(getPath(i), os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			continue
@@ -352,9 +355,9 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 		}
 
 		var data2 []byte
-		if i+1 == w.config.NumberOfSegments &&
-			remainingBytesToTruncate > w.config.LastSegmentSize {
-			data2 = make([]byte, w.config.LastSegmentSize)
+		if i+1 == w.numberOfSegments &&
+			remainingBytesToTruncate >= w.lastSegmentSize {
+			data2 = make([]byte, w.lastSegmentSize)
 			_, err = f2.Read(data2)
 			if err != nil {
 				fmt.Println("Error reading file: ", err)
@@ -362,11 +365,14 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 			}
 
 			f.Write(data2)
-			os.Remove(getPath(w.config.NumberOfSegments))
-			os.Truncate(getPath(w.config.NumberOfSegments-1), int64(remainingFileData+w.config.LastSegmentSize))
-			w.config.NumberOfSegments--
-			w.config.LastSegmentSize = int(remainingFileData + w.config.LastSegmentSize)
-			w.config.WriteConfig()
+			f2.Close()
+			err := os.Remove(getPath(w.numberOfSegments))
+			if err != nil {
+				continue
+			}
+			os.Truncate(getPath(w.numberOfSegments-1), int64(remainingFileData+w.lastSegmentSize))
+			w.numberOfSegments--
+			w.lastSegmentSize = int(remainingFileData + w.lastSegmentSize)
 			f.Close()
 			f2.Close()
 			return
@@ -379,9 +385,9 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 			}
 
 			f.Write(data2)
-			if i+1 == w.config.NumberOfSegments {
+			if i+1 == w.numberOfSegments {
 				f2.Seek(int64(remainingBytesToTruncate), 0)
-				data3 := make([]byte, w.config.LastSegmentSize-remainingBytesToTruncate)
+				data3 := make([]byte, w.lastSegmentSize-remainingBytesToTruncate)
 				_, err = f2.Read(data3)
 				if err != nil {
 					fmt.Println("Error reading file: ", err)
@@ -390,22 +396,23 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 
 				f2.Seek(0, 0)
 				f2.Write(data3)
-				os.Truncate(getPath(w.config.NumberOfSegments), int64(w.config.LastSegmentSize-remainingBytesToTruncate))
-				w.config.LastSegmentSize -= remainingBytesToTruncate
-				w.config.WriteConfig()
+				os.Truncate(getPath(w.numberOfSegments), int64(w.lastSegmentSize-remainingBytesToTruncate))
+				w.lastSegmentSize -= remainingBytesToTruncate
 				f.Close()
 				f2.Close()
 				return
 			}
 		}
+		f.Close()
+		f2.Close()
 	}
 	//if there is only one file left
-	if w.config.NumberOfSegments == 1 && remainingBytesToTruncate != 0 {
+	if w.numberOfSegments == 1 && remainingBytesToTruncate != 0 {
 		f, err := os.OpenFile(getPath(1), os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			return
 		}
-		data := make([]byte, w.config.LastSegmentSize-remainingBytesToTruncate)
+		data := make([]byte, w.lastSegmentSize-remainingBytesToTruncate)
 		f.Seek(int64(remainingBytesToTruncate), 0)
 		_, err = f.Read(data)
 		if err != nil {
@@ -414,16 +421,15 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 		}
 		f.Seek(0, 0)
 		f.Write(data)
-		os.Truncate(getPath(1), int64(w.config.LastSegmentSize-remainingBytesToTruncate))
-		w.config.LastSegmentSize -= remainingBytesToTruncate
-		w.config.WriteConfig()
+		os.Truncate(getPath(1), int64(w.lastSegmentSize-remainingBytesToTruncate))
+		w.lastSegmentSize -= remainingBytesToTruncate
 		f.Close()
 	}
 }
 
 func (w *Wal) getSegmentSize(segmentIndex int) int {
-	if segmentIndex == w.config.NumberOfSegments {
-		return w.config.LastSegmentSize
+	if segmentIndex == w.numberOfSegments {
+		return w.lastSegmentSize
 	}
-	return w.config.SegmentSize
+	return w.segmentSize
 }
