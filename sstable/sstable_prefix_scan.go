@@ -15,7 +15,7 @@ func FindFirstPrefixSSTable(level, sstableNumber int, prefix string) (*record.Re
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
-	_, err := LoadSSTable(level, sstableNumber)
+	_, err := LoadSSTable(level, sstableNumber, nil)
 	if err != nil {
 		return nil, -1, err
 	}

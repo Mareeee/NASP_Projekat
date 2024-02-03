@@ -14,7 +14,7 @@ func FindMinKeyRangeScanSSTable(level, sstableNumber int, minKey, maxKey string)
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
-	_, err := LoadSSTable(level, sstableNumber)
+	_, err := LoadSSTable(level, sstableNumber, nil)
 	if err != nil {
 		return nil, -1, err
 	}
