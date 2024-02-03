@@ -77,14 +77,10 @@ func (m *Menu) Start() {
 			case "X":
 				record := m.engine.Tbucket.ToBytes()
 				m.engine.Put("tb_", record, false)
-				serializedKeyDictionary, _ := m.engine.SerializeMap(m.engine.KeyDictionary)
-				m.engine.Put("keyDictionary_", serializedKeyDictionary, false)
 				os.Exit(0)
 			case "x":
 				record := m.engine.Tbucket.ToBytes()
 				m.engine.Put("tb_", record, false)
-				serializedKeyDictionary, _ := m.engine.SerializeMap(m.engine.KeyDictionary)
-				m.engine.Put("keyDictionary_", serializedKeyDictionary, false)
 				os.Exit(0)
 			default:
 				fmt.Println("Invalid option!")

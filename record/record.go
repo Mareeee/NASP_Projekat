@@ -121,8 +121,10 @@ func LoadAllRecordsFromFiles(filePaths []*os.File, keyDictionary *map[int]string
 	return allRecords
 }
 
-func LoadRecordsFromFile(fileName string) ([]*Record, error) {
+func LoadRecordsFromFile(fileName string, keyDictionary *map[int]string) ([]*Record, error) {
 	var records []*Record
+	cfg := new(config.Config)
+	config.LoadConfig(cfg)
 
 	f, err := os.OpenFile(fileName, os.O_RDONLY, 0644)
 	if err != nil {
@@ -142,25 +144,48 @@ func LoadRecordsFromFile(fileName string) ([]*Record, error) {
 	}
 
 	for len(data) != 0 { // ucitavaj iz fajla sve dok ima nesto
-		crc32 := binary.BigEndian.Uint32(data[0:4])
-		timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
-		tombstone := false
-		if data[12] == 1 {
-			tombstone = true
+		if cfg.Compress {
+			crc32 := binary.BigEndian.Uint32(data[0:4])
+			timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
+			tombstone := false
+			if data[12] == 1 {
+				tombstone = true
+			}
+			keySize := int64(binary.BigEndian.Uint16(data[13:15]))
+			valueSize := int64(binary.BigEndian.Uint64(data[15:23]))
+			index := binary.BigEndian.Uint16(data[23 : 23+keySize])
+			key := (*keyDictionary)[int(index)]
+			value := data[23+keySize : 23+keySize+valueSize]
+
+			checkCrc32 := CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
+
+			if checkCrc32 == crc32 { // potrebno je pri ucitavanju proveriti da li je doslo do promene zapisa
+				loadedRecord := LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
+				records = append(records, loadedRecord)
+			}
+
+			data = data[23+keySize+valueSize:]
+		} else {
+			crc32 := binary.BigEndian.Uint32(data[0:4])
+			timestamp := int64(binary.BigEndian.Uint64(data[4:12]))
+			tombstone := false
+			if data[12] == 1 {
+				tombstone = true
+			}
+			keySize := int64(binary.BigEndian.Uint64(data[13:21]))
+			valueSize := int64(binary.BigEndian.Uint64(data[21:29]))
+			key := string(data[29 : 29+keySize])
+			value := data[29+keySize : 29+keySize+valueSize]
+
+			checkCrc32 := CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
+
+			if checkCrc32 == crc32 { // potrebno je pri ucitavanju proveriti da li je doslo do promene zapisa
+				loadedRecord := LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
+				records = append(records, loadedRecord)
+			}
+
+			data = data[29+keySize+valueSize:]
 		}
-		keySize := int64(binary.BigEndian.Uint64(data[13:21]))
-		valueSize := int64(binary.BigEndian.Uint64(data[21:29]))
-		key := string(data[29 : 29+keySize])
-		value := data[29+keySize : 29+keySize+valueSize]
-
-		checkCrc32 := CalculateCRC(timestamp, tombstone, keySize, valueSize, key, value)
-
-		if checkCrc32 == crc32 { // potrebno je pri ucitavanju proveriti da li je doslo do promene zapisa
-			loadedRecord := LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, key, value)
-			records = append(records, loadedRecord)
-		}
-
-		data = data[29+keySize+valueSize:]
 	}
 
 	return records, nil
@@ -246,9 +271,7 @@ func (r Record) ToBytesSSTable(keyDictionary *map[int]string) []byte {
 			indexBytes := make([]byte, 2)
 			binary.BigEndian.PutUint16(indexBytes, uint16(index))
 			binary.BigEndian.PutUint16(buffer[13:15], uint16(r.KeySize))
-			binary.BigEndian.PutUint64(buffer[15:23], uint64(r.ValueSize))
-			binary.BigEndian.PutUint16(buffer[23:23+r.KeySize], uint16(index))
-			copy(buffer[23+r.KeySize:bufferSize], r.Value)
+			binary.BigEndian.PutUint16(buffer[15:15+r.KeySize], uint16(index))
 		} else {
 			binary.BigEndian.PutUint64(buffer[13:21], uint64(r.KeySize))
 			copy(buffer[21:21+r.KeySize], []byte(r.Key))

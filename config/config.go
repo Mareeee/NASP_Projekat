@@ -13,6 +13,7 @@ const (
 	TOKENBUCKET_STATE          = "data/token_bucket/token_bucket_state.bin"
 	CMS_FILE_PATH              = "data/cms/cms.bin"
 	HLL_FILE_PATH              = "data/hll/hll.bin"
+	KEY_DICTIONARY_FILE_PATH   = "data/keyDictionary/keyDictionary.bin"
 	HLL_MIN_PRECISION          = 4
 	HLL_MAX_PRECISION          = 16
 	CONFIG_NUMBER_OF_LEVELS    = 5
@@ -32,6 +33,7 @@ const (
 	CONFIG_MAX_BYTES_SSTABLES  = 128
 	CONFIG_COMPACT_TYPE        = "size_tiered"
 	CONFIG_COMPRESS            = false
+	CONFIG_M                   = 4
 )
 
 type Config struct {
@@ -134,6 +136,10 @@ func (cfg *Config) checkValidity() {
 		cfg.Compress = CONFIG_COMPRESS
 	}
 
+	if cfg.M < 4 {
+		cfg.M = CONFIG_M
+	}
+
 }
 
 func LoadConfig(cfg *Config) error {
@@ -157,6 +163,7 @@ func LoadConfig(cfg *Config) error {
 		cfg.MaxBytesSSTables = CONFIG_MAX_BYTES_SSTABLES
 		cfg.CompactType = CONFIG_COMPACT_TYPE
 		cfg.Compress = CONFIG_COMPRESS
+		cfg.M = CONFIG_M
 	} else {
 		err = json.Unmarshal(jsonFile, &cfg)
 		if err != nil {

@@ -40,15 +40,17 @@ func LoadSSTable(sstLevel int, fileNumber int, keyDicitonary *map[int]string) (*
 		return nil, err
 	}
 
-	allRecords, err := record.LoadRecordsFromFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_data_" + strconv.Itoa(fileNumber) + ".db")
-
+	allRecords, err := record.LoadRecordsFromFile(config.SSTABLE_DIRECTORY+"lvl_"+strconv.Itoa(sstLevel)+"_sstable_data_"+strconv.Itoa(fileNumber)+".db", keyDicitonary)
+	if allRecords == nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	var allRecordsBytes [][]byte
 	for _, record := range allRecords {
-		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable(keyDicitonary))
 	}
 	mtNew := merkle.NewMerkleTree(allRecordsBytes)
 
@@ -119,7 +121,14 @@ func (s *SSTable) writeIndex(index []IndexEntry, level int) {
 	defer f.Close()
 
 	for _, entry := range index {
-		keyBytes := []byte(entry.key)
+		var keyBytes []byte
+		if s.config.Compress {
+			keyBytes = make([]byte, 2)
+			keyInt, _ := strconv.Atoi(entry.key)
+			binary.BigEndian.PutUint16(keyBytes, uint16(keyInt))
+		} else {
+			keyBytes = []byte(entry.key)
+		}
 
 		var err error
 		if s.config.Compress {
@@ -183,8 +192,21 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
 	defer f.Close()
 
 	for _, entry := range summary {
-		firstKeyBytes := []byte(entry.firstKey)
-		lastKeyBytes := []byte(entry.lastKey)
+		var firstKeyBytes []byte
+		var lastKeyBytes []byte
+
+		if s.config.Compress {
+			firstKeyBytes = make([]byte, 2)
+			keyInt, _ := strconv.Atoi(entry.firstKey)
+			binary.BigEndian.PutUint16(firstKeyBytes, uint16(keyInt))
+
+			lastKeyBytes = make([]byte, 2)
+			keyInt, _ = strconv.Atoi(entry.lastKey)
+			binary.BigEndian.PutUint16(lastKeyBytes, uint16(keyInt))
+		} else {
+			firstKeyBytes = []byte(entry.firstKey)
+			lastKeyBytes = []byte(entry.lastKey)
+		}
 
 		if s.config.Compress {
 			err = binary.Write(f, binary.BigEndian, int16(len(firstKeyBytes)))
@@ -273,7 +295,6 @@ func findSSTableNumber(key string, numOfSSTables int, keyDicitonary *map[int]str
 
 	for i := len(data) - 1; i >= 0; i-- {
 		sst, err := LoadSSTable(data[i][0], data[i][1], keyDicitonary)
-
 		if err != nil {
 			return -1, -1, err
 		}
@@ -317,7 +338,8 @@ func loadAndFindIndexOffset(fileNumber, level int, key string, keyDictionary *ma
 			if readErr != nil {
 				return "", -1, readErr
 			}
-			index := binary.BigEndian.Uint16(firstKeyBytes)
+			index, _ := strconv.Atoi(string(firstKeyBytes))
+			// index := binary.BigEndian.Uint16(firstKeyBytes)
 			firstKey := (*keyDictionary)[int(index)]
 
 			lastKeySizeBytes := make([]byte, 2)
@@ -333,8 +355,8 @@ func loadAndFindIndexOffset(fileNumber, level int, key string, keyDictionary *ma
 			if readErr != nil {
 				return "", -1, readErr
 			}
-			index = binary.BigEndian.Uint16(lastKeyBytes)
-			lastKey := (*keyDictionary)[int(index)]
+			index1 := binary.BigEndian.Uint16(lastKeyBytes)
+			lastKey := (*keyDictionary)[int(index1)]
 
 			offsetBytes := make([]byte, 8)
 			_, readErr = f.Read(offsetBytes)
@@ -653,7 +675,7 @@ func (s *SSTable) createFilter(allRecords []record.Record, level int) {
 func (s *SSTable) createMetaData(allRecords []record.Record, level int) {
 	var allRecordsBytes [][]byte
 	for _, record := range allRecords {
-		allRecordsBytes = append(allRecordsBytes, record.ToBytes())
+		allRecordsBytes = append(allRecordsBytes, record.ToBytesSSTable(s.keyDictionary))
 	}
 	s.metadata = merkle.NewMerkleTree(allRecordsBytes)
 	s.metadata.WriteToBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_metadata_" + strconv.Itoa(s.config.NumberOfSSTables) + ".bin")
@@ -774,9 +796,21 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 
 		if count%cfg.IndexInterval == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(indexOffset)})
-			keyBytes := []byte(record.Key)
 
-			binary.Write(indexFile, binary.BigEndian, int64(len(keyBytes)))
+			var keyBytes []byte
+			if cfg.Compress {
+				keyBytes = make([]byte, 2)
+				keyInt, _ := strconv.Atoi(record.Key)
+				binary.BigEndian.PutUint16(keyBytes, uint16(keyInt))
+			} else {
+				keyBytes = []byte(record.Key)
+			}
+
+			if cfg.Compress {
+				binary.Write(indexFile, binary.BigEndian, int16(len(keyBytes)))
+			} else {
+				binary.Write(indexFile, binary.BigEndian, int64(len(keyBytes)))
+			}
 			indexFile.Write(keyBytes)
 			binary.Write(indexFile, binary.BigEndian, int64(indexOffset))
 
@@ -797,19 +831,41 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 		if endIndex >= len(index) {
 			endIndex = len(index) - 1
 		}
+		var firstKeyBytes []byte
+		var lastKeyBytes []byte
 
-		firstKeyBytes := []byte(index[i].key)
-		lastKeyBytes := []byte(index[endIndex].key)
+		if cfg.Compress {
+			firstKeyBytes = make([]byte, 2)
+			keyInt, _ := strconv.Atoi(index[i].key)
+			binary.BigEndian.PutUint16(firstKeyBytes, uint16(keyInt))
 
-		binary.Write(summaryFile, binary.BigEndian, int64(len(firstKeyBytes)))
+			lastKeyBytes = make([]byte, 2)
+			keyInt, _ = strconv.Atoi(index[endIndex].key)
+			binary.BigEndian.PutUint16(lastKeyBytes, uint16(keyInt))
+		} else {
+			firstKeyBytes = []byte(index[i].key)
+			lastKeyBytes = []byte(index[endIndex].key)
+		}
+
+		if cfg.Compress {
+			binary.Write(summaryFile, binary.BigEndian, int16(len(firstKeyBytes)))
+		} else {
+			binary.Write(summaryFile, binary.BigEndian, int64(len(firstKeyBytes)))
+		}
 		summaryFile.Write(firstKeyBytes)
-
-		binary.Write(summaryFile, binary.BigEndian, int64(len(lastKeyBytes)))
+		if cfg.Compress {
+			binary.Write(summaryFile, binary.BigEndian, int16(len(lastKeyBytes)))
+		} else {
+			binary.Write(summaryFile, binary.BigEndian, int64(len(lastKeyBytes)))
+		}
 		summaryFile.Write(lastKeyBytes)
 
 		binary.Write(summaryFile, binary.BigEndian, int64(summaryOffset))
-
-		summaryOffset = 16 + len([]byte(index[i].key))
+		if cfg.Compress {
+			summaryOffset = 10 + len([]byte(index[i].key))
+		} else {
+			summaryOffset = 16 + len([]byte(index[i].key))
+		}
 	}
 
 	bf := bloom.NewBloomFilter(count, 0.01)
@@ -830,5 +886,3 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 
 	filterFile.Write(bf.ToBytes())
 }
-
-// TODO: da se u lsm racuna broj rekorad i na osnovu toga pravi sstabela

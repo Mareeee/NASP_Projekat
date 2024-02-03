@@ -14,20 +14,22 @@ func GenerateRandomRecordsForEvery100(engine engine.Engine) {
 	value := []byte("IDEGAS")
 	var listOfRecords []record.Record
 	numberOfRecords := 100000
-	j := 0
-	for i := 0; i < numberOfRecords; i += 1 {
+	j := 1
+	for i := 1; i <= numberOfRecords; i += 1 {
+		record := record.NewRecord(strconv.Itoa(j), value, false)
+		listOfRecords = append(listOfRecords, *record)
 		if i%1000 == 0 {
 			j++
 		}
-		record := record.NewRecord(strconv.Itoa(j), value, false)
-		listOfRecords = append(listOfRecords, *record)
 	}
 	//shuffling records in random order
 	shuffle(listOfRecords)
 	//putting records
-	for i := 0; i < 100000; i++ {
+	for i := 0; i < 5000; i++ {
 		engine.Put(listOfRecords[i].Key, listOfRecords[i].Value, false)
-		fmt.Println(i)
+		if i%1000 == 0 {
+			fmt.Println(i)
+		}
 	}
 }
 
@@ -49,7 +51,9 @@ func GenerateRandomRecordsForEvery50000(engine engine.Engine) {
 	//putting records
 	for i := 0; i < 100000; i++ {
 		engine.Put(listOfRecords[i].Key, listOfRecords[i].Value, false)
-		fmt.Println(i)
+		if i%1000 == 0 {
+			fmt.Println(i)
+		}
 	}
 }
 

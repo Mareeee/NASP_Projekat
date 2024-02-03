@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"main/bloom-filter"
 	"main/cache"
 	"main/cms"
@@ -50,12 +51,19 @@ func (e *Engine) Engine() {
 	e.active_memtable_index = 0
 
 	e.recover()
-	keyDictionaryRecord := e.Get("keyDictionary_")
-	if keyDictionaryRecord == nil {
-		e.KeyDictionary = make(map[int]string)
+	if e.config.Compress {
+		f, _ := os.Open(config.KEY_DICTIONARY_FILE_PATH)
+		defer f.Close()
+
+		keyDictionaryBytes, _ := io.ReadAll(f)
+		if len(keyDictionaryBytes) == 0 {
+			e.KeyDictionary = make(map[int]string)
+		} else {
+			keyDictionary, _ := e.DeserializeMap(keyDictionaryBytes)
+			e.KeyDictionary = keyDictionary
+		}
 	} else {
-		keyDictionary, _ := e.DeserializeMap(keyDictionaryRecord.Value)
-		e.KeyDictionary = keyDictionary
+		e.KeyDictionary = nil
 	}
 }
 

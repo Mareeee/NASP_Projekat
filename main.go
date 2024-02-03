@@ -4,33 +4,28 @@ import (
 	"fmt"
 	"main/config"
 	"main/engine"
+	"os"
 )
 
 func main() {
 	engine := new(engine.Engine)
 	engine.Engine()
+
 	// menu := new(menu.Menu)
 	// menu.Start()
 	// test.GenerateRandomRecordsForEvery50000(*engine)
 	cfg := new(config.Config)
 	config.LoadConfig(cfg)
 
-	fmt.Println(engine.Get("0"))
-	// wal, _ := wal.LoadWal(cfg)
-	// wal.AddRecord("Mare", []byte("Care"), false)
-	// records := test.GenerateRandomRecords(5)
+	fmt.Println(engine.Get("100"))
+	// test.GenerateRandomRecordsForEvery100(*engine)
 	// for i := 0; i < len(records); i++ {
-	//     engine.Put(records[i].Key, records[i].Value, false)
-	// }
-	// meni := menu.Menu{}
-	// meni.Start()
-	// rekordi, _ := wal.LoadAllRecords()
-
-	// valueSlice := make([]record.Record, len(rekordi))
-	// for i, ptr := range rekordi {
-	//     valueSlice[i] = *ptr
+	// 	engine.Put(records[i].Key, records[i].Value, false)
 	// }
 
-	// sstable.NewSSTable(valueSlice, cfg, 1)
-	// lsm.SizeTiered()
+	serializedKeyDictionary, _ := engine.SerializeMap(engine.KeyDictionary)
+	f, _ := os.OpenFile(config.KEY_DICTIONARY_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	defer f.Close()
+
+	f.Write(serializedKeyDictionary)
 }

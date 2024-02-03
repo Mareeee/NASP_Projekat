@@ -77,13 +77,13 @@ func SizeTiered(cfg *config.Config, keyDictionary *map[int]string) {
 		path := config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level+1) + "_sstable_data_" + strconv.Itoa(cfg.NumberOfSSTables-len(currentLevelSSTables)+1) + ".db"
 		if cfg.CompactBy == "byte" {
 			byteSizeOfCurrentLevelSSTables, _ := calculateSizeOfSSTables(currentLevelSSTables)
-			if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables {
+			if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables*level {
 				SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
 			} else {
 				return // nema uslova za kompakciju
 			}
 		} else if cfg.CompactBy == "amount" {
-			if len(currentLevelSSTables) >= cfg.MaxTabels {
+			if len(currentLevelSSTables) >= cfg.MaxTabels*level {
 				SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
 			} else {
 				return // nema uslova za kompakciju
@@ -262,81 +262,81 @@ func deleteFromArrays(allRecords []record.Record, allFiles []*os.File, index int
 	return allRecordsResult, allFilesResult
 }
 
-func mergeTables(records1, records2 string, level int) []record.Record {
-	var result_records []record.Record
+// func mergeTables(records1, records2 string, level int) []record.Record {
+// 	var result_records []record.Record
 
-	allRecords1, _ := record.LoadRecordsFromFile("data/sstable/" + records1)
-	allRecords2, _ := record.LoadRecordsFromFile("data/sstable/" + records2)
+// 	allRecords1, _ := record.LoadRecordsFromFile("data/sstable/" + records1, )
+// 	allRecords2, _ := record.LoadRecordsFromFile("data/sstable/" + records2)
 
-	counterRecords1 := 0
-	counterRecords2 := 0
+// 	counterRecords1 := 0
+// 	counterRecords2 := 0
 
-	var record1 *record.Record
-	var record2 *record.Record
-	for {
-		// ako brojaci nisu stigli do kraja, uzimamo sledece rekorde
-		if counterRecords1 < len(allRecords1) {
-			record1 = allRecords1[counterRecords1]
-		} else {
-			record1 = nil
-		}
-		if counterRecords2 < len(allRecords2) {
-			record2 = allRecords2[counterRecords2]
-		} else {
-			record2 = nil
-		}
+// 	var record1 *record.Record
+// 	var record2 *record.Record
+// 	for {
+// 		// ako brojaci nisu stigli do kraja, uzimamo sledece rekorde
+// 		if counterRecords1 < len(allRecords1) {
+// 			record1 = allRecords1[counterRecords1]
+// 		} else {
+// 			record1 = nil
+// 		}
+// 		if counterRecords2 < len(allRecords2) {
+// 			record2 = allRecords2[counterRecords2]
+// 		} else {
+// 			record2 = nil
+// 		}
 
-		// ako su svi rekordi iz jedne sstabele upisani samo nastavi upis iz druge
-		if record1 == nil && record2 == nil {
-			break
-		}
-		if record1 == nil && record2 != nil {
-			result_records = append(result_records, *record2)
-			counterRecords2++
-			continue
-		} else if record2 == nil && record1 != nil {
-			result_records = append(result_records, *record1)
-			counterRecords1++
-			continue
-		}
+// 		// ako su svi rekordi iz jedne sstabele upisani samo nastavi upis iz druge
+// 		if record1 == nil && record2 == nil {
+// 			break
+// 		}
+// 		if record1 == nil && record2 != nil {
+// 			result_records = append(result_records, *record2)
+// 			counterRecords2++
+// 			continue
+// 		} else if record2 == nil && record1 != nil {
+// 			result_records = append(result_records, *record1)
+// 			counterRecords1++
+// 			continue
+// 		}
 
-		// ako su oba rekorda logicki obrisana, ucitavamo nove rekorde iz liste, a ako je samo jedan obrisan ucitavamo novi rekord iz njegove liste
-		if record1.Tombstone && record2.Tombstone {
-			counterRecords1++
-			counterRecords2++
-			continue
-		} else if record1.Tombstone && !record2.Tombstone {
-			counterRecords1++
-			continue
-		} else if !record1.Tombstone && record2.Tombstone {
-			counterRecords2++
-			continue
-		}
+// 		// ako su oba rekorda logicki obrisana, ucitavamo nove rekorde iz liste, a ako je samo jedan obrisan ucitavamo novi rekord iz njegove liste
+// 		if record1.Tombstone && record2.Tombstone {
+// 			counterRecords1++
+// 			counterRecords2++
+// 			continue
+// 		} else if record1.Tombstone && !record2.Tombstone {
+// 			counterRecords1++
+// 			continue
+// 		} else if !record1.Tombstone && record2.Tombstone {
+// 			counterRecords2++
+// 			continue
+// 		}
 
-		// poredimo kljuceve i upisujemo noviji rekord po timestampu
-		if record1.Key == record2.Key {
-			record := record.GetNewerRecord(*record1, *record2)
-			result_records = append(result_records, record)
-			counterRecords1++
-			counterRecords2++
-		} else if record1.Key > record2.Key { // upisujemo rekord sa manjim kljucem (leksikografski)
-			if counterRecords2 == len(allRecords2) {
-				result_records = append(result_records, *record1)
-				counterRecords1++
-			} else {
-				result_records = append(result_records, *record2)
-				counterRecords2++
-			}
-		} else if record1.Key < record2.Key {
-			if counterRecords1 == len(allRecords1) {
-				result_records = append(result_records, *record2)
-				counterRecords2++
-			} else {
-				result_records = append(result_records, *record1)
-				counterRecords1++
-			}
-		}
-	}
+// 		// poredimo kljuceve i upisujemo noviji rekord po timestampu
+// 		if record1.Key == record2.Key {
+// 			record := record.GetNewerRecord(*record1, *record2)
+// 			result_records = append(result_records, record)
+// 			counterRecords1++
+// 			counterRecords2++
+// 		} else if record1.Key > record2.Key { // upisujemo rekord sa manjim kljucem (leksikografski)
+// 			if counterRecords2 == len(allRecords2) {
+// 				result_records = append(result_records, *record1)
+// 				counterRecords1++
+// 			} else {
+// 				result_records = append(result_records, *record2)
+// 				counterRecords2++
+// 			}
+// 		} else if record1.Key < record2.Key {
+// 			if counterRecords1 == len(allRecords1) {
+// 				result_records = append(result_records, *record2)
+// 				counterRecords2++
+// 			} else {
+// 				result_records = append(result_records, *record1)
+// 				counterRecords1++
+// 			}
+// 		}
+// 	}
 
-	return result_records
-}
+// 	return result_records
+// }
