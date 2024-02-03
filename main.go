@@ -1,13 +1,18 @@
 package main
 
-import "main/engine"
+import (
+	"main/engine"
+	"strconv"
+)
 
 func main() {
 	engine := new(engine.Engine)
 	engine.Engine()
 	// engine := new(engine.Engine)
 	// engine.Engine()
-	// engine.Put("zoran", []byte("dragan"), false)
+	for i := 0; i < 150; i++ {
+		engine.Put(strconv.Itoa(i), []byte("ksljfsdsdfsadfsad"), false)
+	}
 	// test.GenerateRandomRecordsForEvery50000(*engine)
 	// cfg := new(config.Config)
 	// config.LoadConfig(cfg)
@@ -15,7 +20,7 @@ func main() {
 	// wal.AddRecord("Mare", []byte("Care"), false)
 	// records := test.GenerateRandomRecords(5)
 	// for i := 0; i < len(records); i++ {
-	// 	engine.Put(records[i].Key, records[i].Value, false)
+	//     engine.Put(records[i].Key, records[i].Value, false)
 	// }
 	// meni := menu.Menu{}
 	// meni.Start()
@@ -23,7 +28,7 @@ func main() {
 
 	// valueSlice := make([]record.Record, len(rekordi))
 	// for i, ptr := range rekordi {
-	// 	valueSlice[i] = *ptr
+	//     valueSlice[i] = *ptr
 	// }
 
 	// sstable.NewSSTable(valueSlice, cfg, 1)

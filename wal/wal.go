@@ -356,7 +356,7 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 
 		var data2 []byte
 		if i+1 == w.numberOfSegments &&
-			remainingBytesToTruncate > w.lastSegmentSize {
+			remainingBytesToTruncate >= w.lastSegmentSize {
 			data2 = make([]byte, w.lastSegmentSize)
 			_, err = f2.Read(data2)
 			if err != nil {
@@ -365,7 +365,11 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 			}
 
 			f.Write(data2)
-			os.Remove(getPath(w.numberOfSegments))
+			f2.Close()
+			err := os.Remove(getPath(w.numberOfSegments))
+			if err != nil {
+				continue
+			}
 			os.Truncate(getPath(w.numberOfSegments-1), int64(remainingFileData+w.lastSegmentSize))
 			w.numberOfSegments--
 			w.lastSegmentSize = int(remainingFileData + w.lastSegmentSize)
@@ -399,6 +403,8 @@ func (w *Wal) DeleteWalSegmentsEngine(SizeOfRecordsInWal int) {
 				return
 			}
 		}
+		f.Close()
+		f2.Close()
 	}
 	//if there is only one file left
 	if w.numberOfSegments == 1 && remainingBytesToTruncate != 0 {

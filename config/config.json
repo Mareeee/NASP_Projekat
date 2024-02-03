@@ -6,7 +6,7 @@
   "CompactType": "size_tiered",
   "SegmentSize": 256,
   "MaxHeight": 5,
-  "NumberOfSSTables": 1,
+  "NumberOfSSTables": 0,
   "IndexInterval": 3,
   "SummaryInterval": 3,
   "Capacity": 10,
