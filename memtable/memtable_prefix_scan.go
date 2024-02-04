@@ -36,7 +36,7 @@ func GetNextPrefixMemtable(m Memtable, prefix string, index int, structure strin
 		records = m.bTree.ValuesInOrderTraversal()
 	}
 
-	if index > len(records) {
+	if index >= len(records) {
 		return nil, -1
 	} else {
 		record := records[index]

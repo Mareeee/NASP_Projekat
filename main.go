@@ -1,15 +1,11 @@
 package main
 
-import (
-	"fmt"
-	"main/config"
-	"main/engine"
-	"os"
-)
+import "main/menu"
 
 func main() {
-	engine := new(engine.Engine)
-	engine.Engine()
+	// engine := new(engine.Engine)
+	// engine.Engine()
+	// engine.RangeScan("a", "z", 2, 3)
 
 	// engine.Put("Mare", []byte("Senta"), false)
 	// engine.Put("David", []byte("Stakic"), false)
@@ -21,11 +17,11 @@ func main() {
 	// engine.Put("moja", []byte("mala"), false)
 	// engine.Put("tvoja", []byte("keva"), false)
 
-	fmt.Printf("engine.Get(\"Mare\"): %v\n", engine.Get("Mare"))
+	// fmt.Printf("engine.Get(\"Mare\"): %v\n", engine.Get("Mare"))
 	// fmt.Printf("engine.Get(\"Vlado\"): %v\n", engine.Get("Mare"))
 
-	// menu := new(menu.Menu)
-	// menu.Start()
+	menu := new(menu.Menu)
+	menu.Start()
 	// test.GenerateRandomRecordsForEvery50000(*engine)
 	// cfg := new(config.Config)
 	// config.LoadConfig(cfg)
@@ -40,9 +36,9 @@ func main() {
 	// 	engine.Put(records[i].Key, records[i].Value, false)
 	// }
 
-	serializedKeyDictionary, _ := engine.SerializeMap(engine.KeyDictionary)
-	f, _ := os.OpenFile(config.KEY_DICTIONARY_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
-	defer f.Close()
+	// serializedKeyDictionary, _ := engine.SerializeMap(engine.KeyDictionary)
+	// f, _ := os.OpenFile(config.KEY_DICTIONARY_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	// defer f.Close()
 
-	f.Write(serializedKeyDictionary)
+	// f.Write(serializedKeyDictionary)
 }

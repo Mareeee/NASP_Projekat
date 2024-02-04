@@ -295,7 +295,7 @@ func (m *Menu) PrefixScan() {
 
 	page := m.engine.PrefixScan(strings.ToLower(prefix), pageNumber, pageSize)
 
-	if len(page) == 0 {
+	if len(page) == 0 || page == nil {
 		fmt.Println("There are not records with given prefix.")
 	} else {
 		fmt.Printf("Page %d:\n", pageNumber)
@@ -318,7 +318,7 @@ func (m *Menu) RangeScan() {
 
 	page := m.engine.RangeScan(minKey, maxKey, pageNumber, pageSize)
 
-	if page == nil {
+	if page == nil || len(page) == 0 {
 		fmt.Println("There are not records in given range.")
 	} else {
 		fmt.Printf("Page %d:\n", pageNumber)
@@ -350,7 +350,7 @@ func (m *Menu) PrefixIterator() {
 
 		fmt.Print(">> ")
 		input = m.InputString()
-		for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+		for strings.ToLower(input) != "next" && strings.ToLower(input) != "stop" {
 			fmt.Print(">> ")
 			input = m.InputString()
 		}
@@ -382,7 +382,7 @@ func (m *Menu) RangeIterator() {
 
 		fmt.Print(">> ")
 		input = m.InputString()
-		for strings.ToLower(input) != "next" || strings.ToLower(input) != "stop" {
+		for strings.ToLower(input) != "next" && strings.ToLower(input) != "stop" {
 			fmt.Print(">> ")
 			input = m.InputString()
 		}

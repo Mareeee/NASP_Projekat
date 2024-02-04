@@ -380,6 +380,8 @@ func (e *Engine) PrefixScan(prefix string, pageNumber, pageSize int) []record.Re
 		} else if len(page) >= pageSize && currentPage < pageNumber {
 			currentPage++
 			page = page[pageSize:]
+		} else if len(memtables) == 0 && len(sstables) == 0 && currentPage < pageNumber {
+			return nil
 		} else {
 			continue
 		}
@@ -468,6 +470,8 @@ func (e *Engine) RangeScan(minKey, maxKey string, pageNumber, pageSize int) []re
 		} else if len(page) >= pageSize && currentPage < pageNumber {
 			currentPage++
 			page = page[pageSize:]
+		} else if len(memtables) == 0 && len(sstables) == 0 && currentPage < pageNumber {
+			return nil
 		} else {
 			continue
 		}
