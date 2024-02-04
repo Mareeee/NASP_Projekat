@@ -50,7 +50,7 @@ func (m *Menu) Start() {
 				m.engine.Put(key, value, false)
 			case "2":
 				key, _ := m.InputKeyValue(false)
-				record := m.engine.Get(key)
+				record := m.engine.Get(key, false) // u slucaju rada sa strukturama staviti na true
 				if record == nil {
 					fmt.Println("Record not found.")
 				} else {

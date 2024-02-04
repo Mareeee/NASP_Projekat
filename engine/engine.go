@@ -74,8 +74,11 @@ func (e *Engine) Put(key string, value []byte, deleted bool) error {
 	return nil
 }
 
-func (e *Engine) Get(key string) *record.Record {
+func (e *Engine) Get(key string, author_change bool) *record.Record {
 	var record *record.Record
+	if !author_change && e.checkSpecialKey(key) {
+		return nil
+	}
 	// going through memtable
 	i := e.active_memtable_index
 	//is active memtable empty, if it is try previous
@@ -124,7 +127,7 @@ func (e *Engine) Get(key string) *record.Record {
 }
 
 func (e *Engine) Delete(key string) error {
-	record := e.Get(key)
+	record := e.Get(key, false)
 	if record == nil {
 		return errors.New("record not found or unable to be deleted")
 	}
@@ -147,7 +150,7 @@ func (e *Engine) BloomFilterCreateNewInstance(key string, expectedElements int, 
 }
 
 func (e *Engine) BloomFilterAddElement(key, element string) {
-	bloom_record := e.Get(key)
+	bloom_record := e.Get(key, true)
 	if bloom_record != nil && strings.HasPrefix(key, "bf_") {
 		bloomFilter := *bloom.FromBytes(bloom_record.Value)
 		bloomFilter.AddElement(element)
@@ -157,7 +160,7 @@ func (e *Engine) BloomFilterAddElement(key, element string) {
 }
 
 func (e *Engine) BloomFilterCheckElement(key, element string) {
-	bloom_record := e.Get(key)
+	bloom_record := e.Get(key, true)
 	if bloom_record != nil && strings.HasPrefix(key, "bf_") {
 		bloomFilter := *bloom.FromBytes(bloom_record.Value)
 		fmt.Println(bloomFilter.CheckElement(element))
@@ -187,7 +190,7 @@ func (e *Engine) HLLDeleteInstance(key string) {
 }
 
 func (e *Engine) HLLAddElement(keyhll, key string) {
-	record := e.Get(keyhll)
+	record := e.Get(keyhll, true)
 	//hyperloglog not found
 	if record != nil && strings.HasPrefix(keyhll, "hll_") {
 		data := record.Value
@@ -201,7 +204,7 @@ func (e *Engine) HLLAddElement(keyhll, key string) {
 }
 
 func (e *Engine) HLLCardinality(key string) {
-	record := e.Get(key)
+	record := e.Get(key, true)
 	//hyperloglog not found
 	if record != nil && strings.HasPrefix(key, "hll_") {
 		data := record.Value
@@ -226,7 +229,7 @@ func (e *Engine) CMSCreateNewInstance(key string, epsilon, delta float64) {
 }
 
 func (e *Engine) CMSAddElement(key, value string) {
-	record := e.Get(key)
+	record := e.Get(key, true)
 	if record != nil && strings.HasPrefix(key, "cms_") {
 		cms := *cms.LoadCMS(record.Value)
 		cms.AddElement(value)
@@ -235,7 +238,7 @@ func (e *Engine) CMSAddElement(key, value string) {
 }
 
 func (e *Engine) CMSCheckFrequency(key, value string) {
-	record := e.Get(key)
+	record := e.Get(key, true)
 	if record != nil && strings.HasPrefix(key, "cms_") {
 		cms := *cms.LoadCMS(record.Value)
 		fmt.Println(cms.NumberOfRepetitions(value))
@@ -257,11 +260,11 @@ func (e *Engine) CalculateFingerprintSimHash(key string, text string) error {
 }
 
 func (e *Engine) CalculateHammingDistanceSimHash(key1, key2 string) error {
-	record1 := e.Get(key1)
+	record1 := e.Get(key1, true)
 	if record1 == nil {
 		return errors.New("key not found")
 	}
-	record2 := e.Get(key2)
+	record2 := e.Get(key2, true)
 	if record2 == nil {
 		return errors.New("key not found")
 	}
@@ -529,4 +532,11 @@ func (e *Engine) DeserializeMap(data []byte) (map[int]string, error) {
 	var m map[int]string
 	err := json.Unmarshal(data, &m)
 	return m, err
+}
+
+func (e *Engine) checkSpecialKey(key string) bool {
+	if strings.HasPrefix(key, "bf_") || strings.HasPrefix(key, "cms_") || strings.HasPrefix(key, "hll_") || strings.HasPrefix(key, "sh_") || strings.HasPrefix(key, "tb_") {
+		return true
+	}
+	return false
 }

@@ -16,5 +16,5 @@
   "MemtableStructure": "btree",
   "NumberOfMemtables": 2,
   "CacheMaxSize": 3,
-  "Compress": true
+  "Compress": false
 }
