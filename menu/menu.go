@@ -3,6 +3,7 @@ package menu
 import (
 	"bufio"
 	"fmt"
+	"main/config"
 	"main/engine"
 	"os"
 	"strconv"
@@ -81,10 +82,16 @@ func (m *Menu) Start() {
 			case "X":
 				record := m.engine.Tbucket.ToBytes()
 				m.engine.Put("tb_", record, false)
+				serializedKeyDictionary, _ := m.engine.SerializeMap(m.engine.KeyDictionary)
+				f, _ := os.OpenFile(config.KEY_DICTIONARY_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+				f.Write(serializedKeyDictionary)
 				os.Exit(0)
 			case "x":
 				record := m.engine.Tbucket.ToBytes()
 				m.engine.Put("tb_", record, false)
+				serializedKeyDictionary, _ := m.engine.SerializeMap(m.engine.KeyDictionary)
+				f, _ := os.OpenFile(config.KEY_DICTIONARY_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+				f.Write(serializedKeyDictionary)
 				os.Exit(0)
 			default:
 				fmt.Println("Invalid option!")

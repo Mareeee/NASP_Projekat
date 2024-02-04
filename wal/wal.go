@@ -48,8 +48,8 @@ func getFileSize(filePath string) int {
 }
 
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
-func (w *Wal) AddRecord(key string, value []byte, delete bool) *record.Record {
-	record := record.NewRecord(key, value, delete)
+func (w *Wal) AddRecord(key string, value []byte, delete bool, keyDictionary *map[int]string) *record.Record {
+	record := record.NewRecord(key, value, delete, keyDictionary)
 	recordBytes := record.ToBytes()
 
 	remainingSpaceInLastSegment := w.segmentSize - w.lastSegmentSize

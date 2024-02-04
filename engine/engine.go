@@ -68,7 +68,7 @@ func (e *Engine) Engine() {
 }
 
 func (e *Engine) Put(key string, value []byte, deleted bool) error {
-	recordToAdd := e.Wal.AddRecord(key, value, deleted)
+	recordToAdd := e.Wal.AddRecord(key, value, deleted, &e.KeyDictionary)
 	e.addRecordToMemtable(*recordToAdd)
 	e.Cache.Set(key, *recordToAdd)
 	return nil

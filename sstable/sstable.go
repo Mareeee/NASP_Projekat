@@ -139,6 +139,10 @@ func (s *SSTable) writeIndex(index []IndexEntry, level int) {
 			keyBytes = []byte(entry.key)
 		}
 
+		if entry.key == "76" {
+			fmt.Printf("entry.key: %v\n", entry.key)
+		}
+
 		var err error
 		if s.config.Compress {
 			err = binary.Write(f, binary.BigEndian, int16(len(keyBytes)))
@@ -192,7 +196,7 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 
 			offset = 8 + len(firstKeyBytes) + len(lastKeyBytes)
 		} else {
-			offset = 8 + len([]byte(index[endIndex].key)) + len([]byte(index[i].key))
+			offset = 16 + len([]byte(index[i].key))
 		}
 		summary = append(summary, summaryEntry)
 	}

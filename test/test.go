@@ -11,12 +11,12 @@ import (
 
 func GenerateRandomRecordsForEvery100(engine engine.Engine) {
 	//every 1000th record different key (100 different keys in a batch)
-	value := []byte("IDEGAS")
+	value := []byte("TEST")
 	var listOfRecords []record.Record
 	numberOfRecords := 100000
 	j := 1
 	for i := 1; i <= numberOfRecords; i += 1 {
-		record := record.NewRecord(strconv.Itoa(j), value, false)
+		record := record.NewRecord(strconv.Itoa(j), value, false, &engine.KeyDictionary)
 		listOfRecords = append(listOfRecords, *record)
 		if i%1000 == 0 {
 			j++
@@ -25,7 +25,7 @@ func GenerateRandomRecordsForEvery100(engine engine.Engine) {
 	//shuffling records in random order
 	shuffle(listOfRecords)
 	//putting records
-	for i := 0; i < 5000; i++ {
+	for i := 0; i < 100000; i++ {
 		engine.Put(listOfRecords[i].Key, listOfRecords[i].Value, false)
 		if i%1000 == 0 {
 			fmt.Println(i)
@@ -35,7 +35,7 @@ func GenerateRandomRecordsForEvery100(engine engine.Engine) {
 
 func GenerateRandomRecordsForEvery50000(engine engine.Engine) {
 	//every 20th record different key (50000 different keys in a batch)
-	value := []byte("IDEGAS")
+	value := []byte("TEST")
 	var listOfRecords []record.Record
 	numberOfRecords := 100000
 	j := 0
@@ -43,7 +43,7 @@ func GenerateRandomRecordsForEvery50000(engine engine.Engine) {
 		if i%20 == 0 {
 			j++
 		}
-		record := record.NewRecord(strconv.Itoa(j), value, false)
+		record := record.NewRecord(strconv.Itoa(j), value, false, &engine.KeyDictionary)
 		listOfRecords = append(listOfRecords, *record)
 	}
 	//shuffling records in random order
@@ -66,13 +66,12 @@ func shuffle(records []record.Record) {
 	})
 }
 
-func GenerateRandomRecords(kvlength int) []record.Record {
-	// key := GenerateRandomString(kvlength)
-	value := []byte("BajoJajo")
+func GenerateRandomRecords(kvlength int, engine engine.Engine) []record.Record {
+	value := []byte("TEST")
 	var listOfRecords []record.Record
 	numberOfRecords := 500
 	for i := 0; i < numberOfRecords; i += 1 {
-		record := record.NewRecord(strconv.Itoa(i)+"hehe", value, false)
+		record := record.NewRecord(strconv.Itoa(i), value, false, &engine.KeyDictionary)
 		listOfRecords = append(listOfRecords, *record)
 	}
 	return listOfRecords
