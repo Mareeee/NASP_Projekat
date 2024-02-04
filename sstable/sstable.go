@@ -101,6 +101,8 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 
 		if count%s.config.IndexInterval == 0 {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
+		} else if i+1 == len(allRecords) {
+			index = append(index, IndexEntry{key: record.Key, offset: int64(offset)})
 		}
 		count++
 		offset += len(record.ToBytesSSTable(s.keyDictionary))
@@ -110,6 +112,15 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 	s.writeIndex(index, level)
 	summary := s.buildSummary(index)
 	s.writeSummaryToFile(summary, level)
+}
+
+func findKeyByValue(myMap map[int]string, targetValue string) (int, bool) {
+	for key, value := range myMap {
+		if value == targetValue {
+			return key, true
+		}
+	}
+	return 0, false
 }
 
 func (s *SSTable) writeIndex(index []IndexEntry, level int) {
@@ -124,7 +135,7 @@ func (s *SSTable) writeIndex(index []IndexEntry, level int) {
 		var keyBytes []byte
 		if s.config.Compress {
 			keyBytes = make([]byte, 2)
-			keyInt, _ := strconv.Atoi(entry.key)
+			keyInt, _ := findKeyByValue(*s.keyDictionary, entry.key)
 			binary.BigEndian.PutUint16(keyBytes, uint16(keyInt))
 		} else {
 			keyBytes = []byte(entry.key)
@@ -755,7 +766,7 @@ func (s *SSTable) WriteRecord(record *record.Record, filepath string) {
 	}
 }
 
-func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDictionary *map[int]string) {
+func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDictionary *map[int]string, recordCounter int) {
 	dataFile, err := os.Open(path)
 	if err != nil {
 		return
@@ -794,7 +805,7 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 			break // procitali smo sve rekorde
 		}
 
-		if count%cfg.IndexInterval == 0 {
+		if count%cfg.IndexInterval == 0 || count+1 == recordCounter {
 			index = append(index, IndexEntry{key: record.Key, offset: int64(indexOffset)})
 
 			var keyBytes []byte

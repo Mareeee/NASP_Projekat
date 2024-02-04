@@ -74,17 +74,18 @@ func SizeTiered(cfg *config.Config, keyDictionary *map[int]string) {
 		if len(currentLevelSSTables) < 2 {
 			return
 		}
+		var recordCounter int
 		path := config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level+1) + "_sstable_data_" + strconv.Itoa(cfg.NumberOfSSTables-len(currentLevelSSTables)+1) + ".db"
 		if cfg.CompactBy == "byte" {
 			byteSizeOfCurrentLevelSSTables, _ := calculateSizeOfSSTables(currentLevelSSTables)
 			if byteSizeOfCurrentLevelSSTables >= cfg.MaxBytesSSTables*level {
-				SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
+				_, recordCounter = SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
 			} else {
 				return // nema uslova za kompakciju
 			}
 		} else if cfg.CompactBy == "amount" {
 			if len(currentLevelSSTables) >= cfg.MaxTabels*level {
-				SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
+				_, recordCounter = SizeTieredMergeSSTables(currentLevelSSTables, path, keyDictionary)
 			} else {
 				return // nema uslova za kompakciju
 			}
@@ -93,7 +94,7 @@ func SizeTiered(cfg *config.Config, keyDictionary *map[int]string) {
 		deleteOldTables(currentLevelSSTables, level)
 		cfg.NumberOfSSTables -= len(currentLevelSSTables) - 1
 		cfg.WriteConfig()
-		sstable.WriteDataIndexSummaryLSM(path, level+1, *cfg, keyDictionary)
+		sstable.WriteDataIndexSummaryLSM(path, level+1, *cfg, keyDictionary, recordCounter)
 	}
 }
 
@@ -148,11 +149,12 @@ func findSSTable(level string) []string {
 	return currentLevelSSTables
 }
 
-func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *map[int]string) bool {
+func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *map[int]string) (bool, int) {
 	SSTableFiles := []*os.File{}
+	recordCounter := 0
 	dataFile, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		return false
+		return false, -1
 	}
 	defer dataFile.Close()
 
@@ -193,8 +195,9 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *
 		_, err := dataFile.Write(recordBytes)
 		if err != nil {
 			fmt.Println("Error writing record to", filepath)
-			return false
+			return false, -1
 		}
+		recordCounter++
 
 		rekord, err := record.LoadRecordFromFile(*SSTableFiles[index], keyDictionary)
 		if err != nil {
@@ -204,7 +207,7 @@ func SizeTieredMergeSSTables(SSTables []string, filepath string, keyDictionary *
 		}
 	}
 
-	return true
+	return true, recordCounter
 }
 
 func findRecordIndex(allRecords []record.Record, target record.Record) int {

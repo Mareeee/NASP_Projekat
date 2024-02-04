@@ -72,7 +72,7 @@ func GenerateRandomRecords(kvlength int) []record.Record {
 	var listOfRecords []record.Record
 	numberOfRecords := 500
 	for i := 0; i < numberOfRecords; i += 1 {
-		record := record.NewRecord(strconv.Itoa(i), value, false)
+		record := record.NewRecord(strconv.Itoa(i)+"hehe", value, false)
 		listOfRecords = append(listOfRecords, *record)
 	}
 	return listOfRecords
