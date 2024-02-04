@@ -1,9 +1,16 @@
 package main
 
 import (
-	"fmt"
+	"main/menu"
 )
 
 func main() {
-	fmt.Println("Napredni Algoritmi i Strukture Podataka!")
+	menu := new(menu.Menu)
+	menu.Start()
+
+	// TEST
+	// engine := new(engine.Engine)
+	// engine.Engine()
+	// test.GenerateRandomRecordsForEvery100(*engine)
+	// test.GenerateRandomRecordsForEvery50000(*engine)
 }

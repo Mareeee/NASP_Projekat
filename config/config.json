@@ -1,0 +1,20 @@
+{
+  "NumberOfLevels": 5,
+  "MaxTables": 4,
+  "CompactBy": "byte",
+  "MaxBytesSSTables": 512,
+  "CompactType": "size_tiered",
+  "SegmentSize": 512,
+  "MaxHeight": 5,
+  "NumberOfSSTables": 2,
+  "IndexInterval": 5,
+  "SummaryInterval": 5,
+  "Capacity": 5,
+  "Rate": 1,
+  "M": 4,
+  "MaxSize": 50,
+  "MemtableStructure": "btree",
+  "NumberOfMemtables": 4,
+  "CacheMaxSize": 3,
+  "Compress": false
+}
