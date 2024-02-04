@@ -22,6 +22,7 @@ func main() {
 	// engine.Put("tvoja", []byte("keva"), false)
 
 	fmt.Printf("engine.Get(\"Mare\"): %v\n", engine.Get("Mare"))
+	// fmt.Printf("engine.Get(\"Vlado\"): %v\n", engine.Get("Mare"))
 
 	// menu := new(menu.Menu)
 	// menu.Start()

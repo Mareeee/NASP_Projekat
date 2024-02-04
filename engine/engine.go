@@ -134,15 +134,21 @@ func (e *Engine) Delete(key string) error {
 
 // bloomfilter options
 
-func (e *Engine) BloomFilterCreateNewInstance(key string) {
-	bloomFilter := bloom.NewBloomFilter(100, 95.0)
-	value := bloomFilter.ToBytes()
-	e.Put("bf_"+key, value, false)
+func (e *Engine) BloomFilterCreateNewInstance(key string, expectedElements int, falsePositiveRate float64) {
+	if expectedElements > 100 || expectedElements < 0 || falsePositiveRate > 95.0 || falsePositiveRate < 0 {
+		bloomFilter := bloom.NewBloomFilter(100, 95.0)
+		value := bloomFilter.ToBytes()
+		e.Put("bf_"+key, value, false)
+	} else {
+		bloomFilter := bloom.NewBloomFilter(expectedElements, falsePositiveRate)
+		value := bloomFilter.ToBytes()
+		e.Put("bf_"+key, value, false)
+	}
 }
 
 func (e *Engine) BloomFilterAddElement(key, element string) {
 	bloom_record := e.Get(key)
-	if bloom_record != nil {
+	if bloom_record != nil && strings.HasPrefix(key, "bf_") {
 		bloomFilter := *bloom.FromBytes(bloom_record.Value)
 		bloomFilter.AddElement(element)
 		value := bloomFilter.ToBytes()
@@ -152,7 +158,7 @@ func (e *Engine) BloomFilterAddElement(key, element string) {
 
 func (e *Engine) BloomFilterCheckElement(key, element string) {
 	bloom_record := e.Get(key)
-	if bloom_record != nil {
+	if bloom_record != nil && strings.HasPrefix(key, "bf_") {
 		bloomFilter := *bloom.FromBytes(bloom_record.Value)
 		fmt.Println(bloomFilter.CheckElement(element))
 	}
@@ -160,10 +166,16 @@ func (e *Engine) BloomFilterCheckElement(key, element string) {
 
 // hyperloglog options
 
-func (e *Engine) HLLCreateNewInstance(key string) {
-	hloglog := hll.NewHyperLogLog(4)
-	data := hloglog.ToBytes()
-	e.Put("hll_"+key, data, false)
+func (e *Engine) HLLCreateNewInstance(key string, p int) {
+	if p > 10 || p < 0 {
+		hloglog := hll.NewHyperLogLog(4)
+		data := hloglog.ToBytes()
+		e.Put("hll_"+key, data, false)
+	} else {
+		hloglog := hll.NewHyperLogLog(uint8(p))
+		data := hloglog.ToBytes()
+		e.Put("hll_"+key, data, false)
+	}
 }
 
 func (e *Engine) HLLDeleteInstance(key string) {
@@ -203,9 +215,14 @@ func (e *Engine) HLLCardinality(key string) {
 
 // 	cms options
 
-func (e *Engine) CMSCreateNewInstance(key string) {
-	cms := cms.NewCountMinSketch(0.1, 0.1)
-	e.Put("cms_"+key, cms.ToBytes(), false)
+func (e *Engine) CMSCreateNewInstance(key string, epsilon, delta float64) {
+	if epsilon > 1 || epsilon < 0 || delta > 1 || delta < 0 {
+		cms := cms.NewCountMinSketch(0.1, 0.1)
+		e.Put("cms_"+key, cms.ToBytes(), false)
+	} else {
+		cms := cms.NewCountMinSketch(epsilon, delta)
+		e.Put("cms_"+key, cms.ToBytes(), false)
+	}
 }
 
 func (e *Engine) CMSAddElement(key, value string) {
@@ -222,7 +239,6 @@ func (e *Engine) CMSCheckFrequency(key, value string) {
 	if record != nil && strings.HasPrefix(key, "cms_") {
 		cms := *cms.LoadCMS(record.Value)
 		fmt.Println(cms.NumberOfRepetitions(value))
-		e.Put(record.Key, cms.ToBytes(), false)
 	}
 }
 
@@ -231,11 +247,12 @@ func (e *Engine) CMSCheckFrequency(key, value string) {
 func (e *Engine) CalculateFingerprintSimHash(key string, text string) error {
 	fingerprint := simhash.CalculateFingerprint(text)
 	value := simhash.ToBytes(fingerprint)
-	err := e.Put(key, value, false)
+	err := e.Put("sh_"+key, value, false)
 	if err != nil {
 		return err
 	}
 	fmt.Println("fingerprint = " + string(value))
+
 	return nil
 }
 
