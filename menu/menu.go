@@ -114,7 +114,9 @@ func (m *Menu) HLLOptions() {
 		case "1":
 			fmt.Print("Choose key for new HyperLogLog: ")
 			key := m.InputString()
-			m.engine.HLLCreateNewInstance(key)
+			fmt.Print("Input p for your HyperLogLog: ")
+			p := m.InputInt()
+			m.engine.HLLCreateNewInstance(key, p)
 		case "2":
 			fmt.Print("Input key of HyperLogLog you want to delete: ")
 			key := m.InputString()
@@ -203,11 +205,19 @@ func (m *Menu) BloomFilterOptions() {
 		case "1":
 			fmt.Print("Choose key for new BloomFilter: ")
 			key := m.InputString()
-			m.engine.BloomFilterCreateNewInstance(key)
+			fmt.Print("Input expectedElements for your BloomFilter: ")
+			expectedElements := m.InputInt()
+			fmt.Print("Input falsePositiveRate for your BloomFilter: ")
+			falsePositiveRate := float64(m.InputInt())
+			m.engine.BloomFilterCreateNewInstance(key, expectedElements, falsePositiveRate)
 		case "2":
 			fmt.Print("Input key of BloomFilter you want to delete: ")
 			key := m.InputString()
-			m.engine.Delete(key)
+			if strings.HasPrefix(key, "bf_") {
+				m.engine.Delete(key)
+			} else {
+				fmt.Println("Such BloomFilter doesn't exist")
+			}
 		case "3":
 			fmt.Print("Input key of BloomFilter you want to add element to: ")
 			key_bf := m.InputString()
@@ -245,7 +255,11 @@ func (m *Menu) CMSOptions() {
 		case "1":
 			fmt.Print("Choose key for your CMS: ")
 			key := m.InputString()
-			m.engine.CMSCreateNewInstance(key)
+			fmt.Print("Input epsilon for your CMS: ")
+			epsilon := float64(m.InputInt())
+			fmt.Print("Input delta for your CMS: ")
+			delta := float64(m.InputInt())
+			m.engine.CMSCreateNewInstance(key, epsilon, delta)
 		case "2":
 			fmt.Print("Input key of CMS you want to delete: ")
 			key := m.InputString()

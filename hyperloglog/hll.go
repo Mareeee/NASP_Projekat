@@ -3,7 +3,6 @@ package hll
 import (
 	"crypto/md5"
 	"encoding/binary"
-	"fmt"
 	"main/config"
 	"math"
 	"math/bits"
@@ -73,7 +72,6 @@ func (hll *HLL) emptyCount() int {
 
 func (hll *HLL) ToBytes() []byte {
 	bufferSize := 9 + len(hll.reg)
-	fmt.Println(bufferSize)
 	buffer := make([]byte, bufferSize)
 	binary.BigEndian.PutUint64(buffer[0:8], hll.m)
 	copy(buffer[8:9], []byte{hll.p})

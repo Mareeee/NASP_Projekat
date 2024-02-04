@@ -1,28 +1,25 @@
 package main
 
-import (
-	"fmt"
-	"main/engine"
-)
+import "main/menu"
 
 func main() {
-	engine := new(engine.Engine)
-	engine.Engine()
+	// engine := new(engine.Engine)
+	// engine.Engine()
 
-	engine.Put("Mare", []byte("Senta"), false)
-	engine.Put("David", []byte("Stakic"), false)
-	engine.Put("Igor", []byte("Nikolic"), false)
-	engine.Put("Vlado", []byte("Kralj"), false)
-	engine.Put("Gic", []byte("Kula"), false)
-	engine.Put("asdf", []byte("bre"), false)
-	engine.Put("qwer", []byte("nebitno"), false)
-	engine.Put("moja", []byte("mala"), false)
-	engine.Put("tvoja", []byte("keva"), false)
+	// engine.Put("Mare", []byte("Senta"), false)
+	// engine.Put("David", []byte("Stakic"), false)
+	// engine.Put("Igor", []byte("Nikolic"), false)
+	// engine.Put("Vlado", []byte("Kralj"), false)
+	// engine.Put("Gic", []byte("Kula"), false)
+	// engine.Put("asdf", []byte("bre"), false)
+	// engine.Put("qwer", []byte("nebitno"), false)
+	// engine.Put("moja", []byte("mala"), false)
+	// engine.Put("tvoja", []byte("keva"), false)
 
-	fmt.Printf("engine.Get(\"Vlado\"): %v\n", engine.Get("Mare"))
+	// fmt.Printf("engine.Get(\"Vlado\"): %v\n", engine.Get("Mare"))
 
-	// menu := new(menu.Menu)
-	// menu.Start()
+	menu := new(menu.Menu)
+	menu.Start()
 	// test.GenerateRandomRecordsForEvery50000(*engine)
 	// cfg := new(config.Config)
 	// config.LoadConfig(cfg)
