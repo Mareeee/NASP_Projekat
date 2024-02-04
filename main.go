@@ -1,6 +1,9 @@
 package main
 
-import "main/engine"
+import (
+	"main/engine"
+	"main/menu"
+)
 
 func main() {
 	engine := new(engine.Engine)
@@ -19,8 +22,8 @@ func main() {
 
 	// fmt.Printf("engine.Get(\"Vlado\"): %v\n", engine.Get("Mare"))
 
-	// menu := new(menu.Menu)
-	// menu.Start()
+	menu := new(menu.Menu)
+	menu.Start()
 	// test.GenerateRandomRecordsForEvery50000(*engine)
 	// cfg := new(config.Config)
 	// config.LoadConfig(cfg)

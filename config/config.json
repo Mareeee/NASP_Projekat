@@ -4,7 +4,7 @@
   "CompactBy": "byte",
   "MaxBytesSSTables": 128,
   "CompactType": "size_tiered",
-  "SegmentSize": 128,
+  "SegmentSize": 4096,
   "MaxHeight": 5,
   "NumberOfSSTables": 1,
   "IndexInterval": 2,
