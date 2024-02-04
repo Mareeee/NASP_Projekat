@@ -8,6 +8,7 @@ import (
 	"main/record"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func FindMinKeyRangeScanSSTable(level, sstableNumber int, minKey, maxKey string) (*record.Record, int, error) {
@@ -123,11 +124,14 @@ func loadAndFindIndexOffsetRangeScan(level, fileNumber int, minKey string) (stri
 		}
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
-		if minKey >= firstKey && minKey <= lastKey {
+		if strings.ToLower(minKey) < strings.ToLower(firstKey) {
 			return lastKey, offset, nil
+		} else if strings.ToLower(minKey) >= strings.ToLower(firstKey) && strings.ToLower(minKey) <= strings.ToLower(lastKey) {
+			return lastKey, offset, nil
+		} else {
+			initialOffset += 24 + int64(firstKeySize) + int64(lastKeySize)
 		}
 
-		initialOffset += 24 + int64(firstKeySize) + int64(lastKeySize)
 	}
 }
 
@@ -169,13 +173,13 @@ func loadAndFindValueOffsetRangeScan(level, fileNumber int, summaryOffset uint64
 		}
 		offset := int64(binary.BigEndian.Uint64(offsetBytes))
 
-		if minKey >= foundKey {
+		if strings.ToLower(minKey) >= strings.ToLower(foundKey) {
 			lastReadOffset = offset
 		} else {
 			return lastReadOffset, nil
 		}
 
-		if foundKey == lastKey {
+		if strings.ToLower(foundKey) == strings.ToLower(lastKey) {
 			break
 		}
 
@@ -242,7 +246,7 @@ func loadRecordRangeScan(level, fileNumber int, minKey, maxKey string, valueOffs
 		return nil, errors.New("CRC doesn't match!")
 	}
 
-	if loadedKey >= minKey && loadedKey <= maxKey {
+	if strings.ToLower(loadedKey) >= strings.ToLower(minKey) && strings.ToLower(loadedKey) <= strings.ToLower(maxKey) {
 		return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value), nil
 	}
 
@@ -312,14 +316,14 @@ func findMinKeyOffset(level, fileNumber int, minKey, maxKey string, valueOffset 
 			continue
 		}
 
-		if loadedKey < minKey {
+		if strings.ToLower(loadedKey) < strings.ToLower(minKey) {
 			if !tombstone {
 				valueOffset += 29 + uint64(keySize) + uint64(valueSize)
 			} else {
 				valueOffset += 21 + uint64(keySize)
 			}
 			continue
-		} else if loadedKey > maxKey {
+		} else if strings.ToLower(loadedKey) > strings.ToLower(maxKey) {
 			return -1, nil
 		} else {
 			return int64(valueOffset), nil

@@ -2,6 +2,7 @@ package memtable
 
 import (
 	"main/record"
+	"strings"
 )
 
 func FindMinRangeScanMemtable(m Memtable, minKey, maxKey, structure string) (*record.Record, int) {
@@ -16,7 +17,7 @@ func FindMinRangeScanMemtable(m Memtable, minKey, maxKey, structure string) (*re
 	}
 
 	for _, record := range records {
-		if record.Key >= minKey && record.Key <= maxKey {
+		if strings.ToLower(record.Key) >= strings.ToLower(minKey) && strings.ToLower(record.Key) <= strings.ToLower(maxKey) {
 			index++
 			return &record, index
 		}
@@ -35,11 +36,11 @@ func GetNextMinRangeScanMemtable(m Memtable, minKey, maxKey string, index int, s
 		records = m.bTree.ValuesInOrderTraversal()
 	}
 
-	if index > len(records) {
+	if index >= len(records) {
 		return nil, -1
 	} else {
 		record := records[index]
-		if record.Key >= minKey && record.Key <= maxKey {
+		if strings.ToLower(record.Key) >= strings.ToLower(minKey) && strings.ToLower(record.Key) <= strings.ToLower(maxKey) {
 			return &record, index
 		}
 	}
