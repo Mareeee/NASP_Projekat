@@ -5,7 +5,6 @@ import "main/menu"
 func main() {
 	// engine := new(engine.Engine)
 	// engine.Engine()
-	// engine.RangeScan("a", "z", 2, 3)
 
 	// engine.Put("Mare", []byte("Senta"), false)
 	// engine.Put("David", []byte("Stakic"), false)
@@ -17,8 +16,8 @@ func main() {
 	// engine.Put("moja", []byte("mala"), false)
 	// engine.Put("tvoja", []byte("keva"), false)
 
-	// fmt.Printf("engine.Get(\"Mare\"): %v\n", engine.Get("Mare"))
-	// fmt.Printf("engine.Get(\"Vlado\"): %v\n", engine.Get("Mare"))
+	// fmt.Printf("engine.Get(\"Mare\"): %v\n", engine.Get("Mare", false))
+	// fmt.Printf("engine.Get(\"Vlado\"): %v\n", engine.Get("Mare", false))
 
 	menu := new(menu.Menu)
 	menu.Start()
