@@ -73,7 +73,7 @@ func GetNextPrefixSSTable(level, sstableNumber int, prefix string, offset int64)
 }
 
 func loadAndFindIndexOffsetPrefixScan(level int, fileNumber int, prefix string) (string, int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return "", -1, err
 	}
@@ -133,7 +133,7 @@ func loadAndFindIndexOffsetPrefixScan(level int, fileNumber int, prefix string) 
 }
 
 func loadAndFindValueOffsetPrefixScan(level, fileNumber int, summaryOffset uint64, prefix, lastKey string) (int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return -1, err
 	}
@@ -219,7 +219,7 @@ func loadRecordPrefixScan(level int, fileNumber int, prefix string, valueOffset 
 		} else if readErr != nil {
 			return nil, readErr
 		}
-		valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+		valueSize = int64(binary.BigEndian.Uint64(extraBytes[0:8]))
 	}
 
 	keyBytes := make([]byte, keySize)
@@ -243,7 +243,7 @@ func loadRecordPrefixScan(level int, fileNumber int, prefix string, valueOffset 
 		return nil, errors.New("CRC doesn't match!")
 	}
 
-	if strings.HasPrefix(loadedKey, prefix) {
+	if strings.HasPrefix(strings.ToLower(loadedKey), prefix) {
 		return record.LoadRecord(crc32, timestamp, tombstone, keySize, valueSize, loadedKey, value), nil
 	}
 
@@ -284,7 +284,7 @@ func findFirstPrefixOffset(level, fileNumber int, prefix string, valueOffset uin
 			} else if readErr != nil {
 				return -1, readErr
 			}
-			valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+			valueSize = int64(binary.BigEndian.Uint64(extraBytes[0:8]))
 		}
 
 		keyBytes := make([]byte, keySize)
@@ -330,7 +330,7 @@ func findFirstPrefixOffset(level, fileNumber int, prefix string, valueOffset uin
 
 func getPrefix(key string, length int) string {
 	if len(key) < length {
-		return key
+		return strings.ToLower(key)
 	}
-	return key[:length]
+	return strings.ToLower(key[:length])
 }

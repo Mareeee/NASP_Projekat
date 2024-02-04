@@ -72,7 +72,7 @@ func GetNextMinRangeScanSSTable(level, sstableNumber int, minKey, maxKey string,
 }
 
 func loadAndFindIndexOffsetRangeScan(level, fileNumber int, minKey string) (string, int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return "", -1, err
 	}
@@ -132,7 +132,7 @@ func loadAndFindIndexOffsetRangeScan(level, fileNumber int, minKey string) (stri
 }
 
 func loadAndFindValueOffsetRangeScan(level, fileNumber int, summaryOffset uint64, minKey, lastKey string) (int64, error) {
-	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_summary_" + strconv.Itoa(fileNumber) + ".db")
+	f, err := os.Open(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(level) + "_sstable_index_" + strconv.Itoa(fileNumber) + ".db")
 	if err != nil {
 		return -1, err
 	}
@@ -218,7 +218,7 @@ func loadRecordRangeScan(level, fileNumber int, minKey, maxKey string, valueOffs
 		} else if readErr != nil {
 			return nil, readErr
 		}
-		valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+		valueSize = int64(binary.BigEndian.Uint64(extraBytes[0:8]))
 	}
 
 	keyBytes := make([]byte, keySize)
@@ -283,7 +283,7 @@ func findMinKeyOffset(level, fileNumber int, minKey, maxKey string, valueOffset 
 			} else if readErr != nil {
 				return -1, readErr
 			}
-			valueSize = int64(binary.BigEndian.Uint64(headerBytes[0:8]))
+			valueSize = int64(binary.BigEndian.Uint64(extraBytes[0:8]))
 		}
 
 		keyBytes := make([]byte, keySize)

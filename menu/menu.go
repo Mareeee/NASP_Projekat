@@ -279,9 +279,9 @@ func (m *Menu) PrefixScan() {
 	fmt.Print("Enter page size: ")
 	pageSize := m.InputInt()
 
-	page := m.engine.PrefixScan(prefix, pageNumber, pageSize)
+	page := m.engine.PrefixScan(strings.ToLower(prefix), pageNumber, pageSize)
 
-	if page == nil {
+	if len(page) == 0 {
 		fmt.Println("There are not records with given prefix.")
 	} else {
 		fmt.Printf("Page %d:\n", pageNumber)
