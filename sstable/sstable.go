@@ -56,9 +56,8 @@ func LoadSSTable(sstLevel int, fileNumber int, keyDicitonary *map[int]string) (*
 
 	mtFile := merkle.ReadFromBinFile(config.SSTABLE_DIRECTORY + "lvl_" + strconv.Itoa(sstLevel) + "_sstable_metadata_" + strconv.Itoa(fileNumber) + ".bin")
 	mtFileNode := merkle.DeserializeMerkleTree(mtFile)
-
 	check := merkle.CompareMerkleTrees(mtFileNode, mtNew.Root)
-	if !check {
+	if !check && !cfg.Compress {
 		return nil, errors.New("data has been altered")
 	}
 
@@ -106,7 +105,6 @@ func (s *SSTable) writeDataIndexSummary(allRecords []record.Record, level int) {
 		}
 		count++
 		offset += len(record.ToBytesSSTable(s.keyDictionary))
-		allRecords[i] = record
 	}
 
 	s.writeIndex(index, level)
@@ -184,9 +182,17 @@ func (s *SSTable) buildSummary(index []IndexEntry) []SummaryEntry {
 		}
 
 		if s.config.Compress {
-			offset = 12 + len([]byte(index[i].key))
+			firstKeyBytes := make([]byte, 2)
+			keyInt, _ := findKeyByValue(*s.keyDictionary, index[i].key)
+			binary.BigEndian.PutUint16(firstKeyBytes, uint16(keyInt))
+
+			lastKeyBytes := make([]byte, 2)
+			keyInt, _ = findKeyByValue(*s.keyDictionary, index[endIndex].key)
+			binary.BigEndian.PutUint16(lastKeyBytes, uint16(keyInt))
+
+			offset = 8 + len(firstKeyBytes) + len(lastKeyBytes)
 		} else {
-			offset = 16 + len([]byte(index[i].key))
+			offset = 8 + len([]byte(index[endIndex].key)) + len([]byte(index[i].key))
 		}
 		summary = append(summary, summaryEntry)
 	}
@@ -208,11 +214,11 @@ func (s *SSTable) writeSummaryToFile(summary []SummaryEntry, level int) {
 
 		if s.config.Compress {
 			firstKeyBytes = make([]byte, 2)
-			keyInt, _ := strconv.Atoi(entry.firstKey)
+			keyInt, _ := findKeyByValue(*s.keyDictionary, entry.firstKey)
 			binary.BigEndian.PutUint16(firstKeyBytes, uint16(keyInt))
 
 			lastKeyBytes = make([]byte, 2)
-			keyInt, _ = strconv.Atoi(entry.lastKey)
+			keyInt, _ = findKeyByValue(*s.keyDictionary, entry.lastKey)
 			binary.BigEndian.PutUint16(lastKeyBytes, uint16(keyInt))
 		} else {
 			firstKeyBytes = []byte(entry.firstKey)
@@ -811,7 +817,7 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 			var keyBytes []byte
 			if cfg.Compress {
 				keyBytes = make([]byte, 2)
-				keyInt, _ := strconv.Atoi(record.Key)
+				keyInt, _ := findKeyByValue(*keyDictionary, record.Key)
 				binary.BigEndian.PutUint16(keyBytes, uint16(keyInt))
 			} else {
 				keyBytes = []byte(record.Key)
@@ -847,11 +853,11 @@ func WriteDataIndexSummaryLSM(path string, level int, cfg config.Config, keyDict
 
 		if cfg.Compress {
 			firstKeyBytes = make([]byte, 2)
-			keyInt, _ := strconv.Atoi(index[i].key)
+			keyInt, _ := findKeyByValue(*keyDictionary, index[i].key)
 			binary.BigEndian.PutUint16(firstKeyBytes, uint16(keyInt))
 
 			lastKeyBytes = make([]byte, 2)
-			keyInt, _ = strconv.Atoi(index[endIndex].key)
+			keyInt, _ = findKeyByValue(*keyDictionary, index[endIndex].key)
 			binary.BigEndian.PutUint16(lastKeyBytes, uint16(keyInt))
 		} else {
 			firstKeyBytes = []byte(index[i].key)
