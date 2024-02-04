@@ -68,8 +68,7 @@ func (e *Engine) Engine() {
 }
 
 func (e *Engine) Put(key string, value []byte, deleted bool) error {
-	e.Wal.AddRecord(key, value, deleted)
-	recordToAdd := record.NewRecord(key, value, false)
+	recordToAdd := e.Wal.AddRecord(key, value, deleted)
 	e.addRecordToMemtable(*recordToAdd)
 	e.Cache.Set(key, *recordToAdd)
 	return nil
@@ -493,7 +492,7 @@ func allSSTables() [][]int {
 		if strings.Contains(file.Name(), "sstable_data") {
 			sstable_tokens := strings.Split(file.Name(), "_")
 			level, _ := strconv.Atoi(sstable_tokens[1])
-			index, _ := strconv.Atoi(sstable_tokens[4])
+			index, _ := strconv.Atoi(strings.Split(sstable_tokens[4], ".")[0])
 			data = append(data, []int{level, index})
 
 			sort.Slice(data, func(i, j int) bool {

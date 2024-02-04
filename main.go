@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"main/config"
 	"main/engine"
-	"os"
 )
 
 func main() {
@@ -39,9 +37,9 @@ func main() {
 	// 	engine.Put(records[i].Key, records[i].Value, false)
 	// }
 
-	serializedKeyDictionary, _ := engine.SerializeMap(engine.KeyDictionary)
-	f, _ := os.OpenFile(config.KEY_DICTIONARY_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
-	defer f.Close()
+	// serializedKeyDictionary, _ := engine.SerializeMap(engine.KeyDictionary)
+	// f, _ := os.OpenFile(config.KEY_DICTIONARY_FILE_PATH, os.O_CREATE|os.O_WRONLY, 0644)
+	// defer f.Close()
 
-	f.Write(serializedKeyDictionary)
+	// f.Write(serializedKeyDictionary)
 }
