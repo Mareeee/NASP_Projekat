@@ -51,7 +51,11 @@ func (m *Menu) Start() {
 			case "2":
 				key, _ := m.InputKeyValue(false)
 				record := m.engine.Get(key)
-				fmt.Println(record)
+				if record == nil {
+					fmt.Println("Record not found.")
+				} else {
+					fmt.Println("Value: " + string(record.Value))
+				}
 			case "3":
 				key, _ := m.InputKeyValue(false)
 				err := m.engine.Delete(key)

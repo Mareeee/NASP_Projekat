@@ -48,7 +48,7 @@ func getFileSize(filePath string) int {
 }
 
 /* Dodaje zapis u segment, ako je segment pun pravi novi segment */
-func (w *Wal) AddRecord(key string, value []byte, delete bool) {
+func (w *Wal) AddRecord(key string, value []byte, delete bool) *record.Record {
 	record := record.NewRecord(key, value, delete)
 	recordBytes := record.ToBytes()
 
@@ -62,6 +62,8 @@ func (w *Wal) AddRecord(key string, value []byte, delete bool) {
 	} else {
 		w.AddRecordToSegment(recordBytes)
 	}
+
+	return record
 }
 
 func (w *Wal) AddRecordToSegment(recordBytes []byte) {
